@@ -2,7 +2,7 @@
 // internet is, en offline terugvallen op de cache. Zoals Tarapp.
 // Bij een release: CACHE hier ophogen, samen met APP_VERSION in js/app.js
 // (tests/sw.test.mjs bewaakt dat).
-const CACHE = 'prikbord-v1'
+const CACHE = 'prikbord-v2'
 const SHELL = [
   './',
   'index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   'manifest.webmanifest',
   'js/app.js',
   'js/beweging.js',
+  'js/filter.js',
   'js/geluid.js',
   'js/layout.js',
   'js/merge.js',
@@ -18,6 +19,7 @@ const SHELL = [
   'js/seed.js',
   'js/store.js',
   'js/validate.js',
+  'js/vrij.js',
   'fonts/caveat-latin-700-normal.woff2',
   'icons/icon-192.png',
   'icons/icon-512.png',

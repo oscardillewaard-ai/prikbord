@@ -67,7 +67,8 @@ const VELD_SCHOON = {
   }),
 }
 
-const CAT_SCHOON = {
+// Ook gebruikt door de categorie-editor (model.js: zetCat).
+export const CAT_SCHOON = {
   naam: tekstTot(40, 1),
   emoji: (w) => (typeof w === 'string' && tekens(w) <= 2 && w.length <= 16 ? w : undefined),
   kleur: (w) => (PAPIER.includes(w) ? w : undefined),
@@ -167,9 +168,11 @@ function schoonApparaat(raw, borden) {
     seenVersion: isGetal(a.seenVersion) ? a.seenVersion : 0,
     ik: perBord(a.ik, (v) => typeof v === 'string' && ID_RE.test(v)),
     weergave: perBord(a.weergave, (v) => v === 'netjes' || v === 'vrij'),
+    sorteer: perBord(a.sorteer, (v) => v === 'nieuw' || v === 'hartjes'),
     laatsteCat: perBord(a.laatsteCat, (v) => typeof v === 'string' && ID_RE.test(v)),
     gezien: perBord(a.gezien, isT),
     concept,
+    laatsteBackup: isT(a.laatsteBackup) ? a.laatsteBackup : 0,
   }
 }
 

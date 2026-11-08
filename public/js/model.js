@@ -12,7 +12,7 @@
 //   of na verwijderen: { id, door, gemaakt, weg }
 // Elk veld (naam, tekst, hartje …) is een register { w: waarde, t: tijdstip }.
 
-import { PUNAISE, VELDEN } from './validate.js'
+import { PUNAISE, VELDEN, PAPIER, CAT_SCHOON } from './validate.js'
 
 // Lange, willekeurige id (base64url). Wordt nooit hergebruikt.
 export function maakId(bytes = 12) {
@@ -76,7 +76,7 @@ export function beginStaat(now) {
     v: 1,
     bord: bord.id,
     borden: { [bord.id]: bord },
-    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, laatsteCat: {}, gezien: {}, concept: null },
+    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, sorteer: {}, laatsteCat: {}, gezien: {}, concept: null, laatsteBackup: 0 },
   }
 }
 
@@ -96,6 +96,27 @@ export function zetVeld(briefje, veld, w, now) {
   briefje.v[veld] = reg(w, stempel(oud, now))
   briefje.v = Object.fromEntries(Object.keys(briefje.v).sort().map((k) => [k, briefje.v[k]]))
   return true
+}
+
+// Een hartje aan of uit (§5.5): per lid een eigen waarde met tijdstempel.
+// Geeft false terug als er niets verandert.
+export function zetHart(briefje, lidId, aan, now) {
+  if (briefje.weg) return false
+  const oud = briefje.hart[lidId]
+  if (oud && oud.w === aan) return false
+  if (!oud && !aan) return false
+  briefje.hart[lidId] = reg(aan, stempel(oud, now))
+  briefje.hart = Object.fromEntries(Object.keys(briefje.hart).sort().map((k) => [k, briefje.hart[k]]))
+  return true
+}
+
+// Wie een hartje gaf, in de volgorde waarin ze het gaven.
+export function hartjesVan(briefje) {
+  if (briefje.weg) return []
+  return Object.entries(briefje.hart)
+    .filter(([, r]) => r.w === true)
+    .sort(([a, ra], [b, rb]) => ra.t - rb.t || (a < b ? -1 : 1))
+    .map(([id]) => id)
 }
 
 // Verwijderen = grafsteen. Alle velden gaan weg; de grafsteen blijft bestaan
@@ -131,4 +152,57 @@ export function opHetBord(bord) {
   return Object.values(bord.briefjes)
     .filter((b) => !b.weg && !waarde(b.v, 'gedaan'))
     .sort((a, b) => b.gemaakt - a.gemaakt || (a.id < b.id ? -1 : 1))
+}
+
+// ---------- Categorieën aanpassen (de editor onder Meer, §5.6) ----------
+// Een categorie wordt nooit gewist, alleen verborgen: oude briefjes houden zo
+// hun kleur, en een gewiste categorie zou bij het samenvoegen toch terugkomen.
+
+// Eén veld van een categorie wijzigen (naam, emoji, kleur, volg, verborgen).
+// Geeft false terug als de waarde niet klopt of niet verandert.
+export function zetCat(bord, catId, veld, w, now) {
+  const schoon = CAT_SCHOON[veld]
+  const c = bord.cats[catId]
+  if (!schoon || !c) return false
+  const nieuw = schoon(typeof w === 'string' ? w.trim() : w)
+  if (nieuw === undefined) return false
+  const oud = c[veld]
+  if (oud && JSON.stringify(oud.w) === JSON.stringify(nieuw)) return false
+  c[veld] = reg(nieuw, stempel(oud, now))
+  bord.cats[catId] = Object.fromEntries(Object.keys(c).sort().map((k) => [k, c[k]]))
+  return true
+}
+
+// Een nieuwe categorie achteraan. Kleur: de eerste die nog niet gebruikt wordt.
+// Geeft het id terug, of null als naam of emoji niet klopt.
+export function nieuweCat(bord, { id = maakId(), naam, emoji, kleur, now }) {
+  const n = CAT_SCHOON.naam(String(naam ?? '').trim())
+  const e = CAT_SCHOON.emoji(String(emoji ?? '').trim() || '📌')
+  if (n === undefined || e === undefined) return null
+  const alle = categorieen(bord, { metVerborgen: true })
+  const bezet = new Set(alle.map((c) => c.kleur))
+  const k = CAT_SCHOON.kleur(kleur) || PAPIER.find((p) => !bezet.has(p)) || PAPIER[alle.length % PAPIER.length]
+  const volg = alle.length ? Math.max(...alle.map((c) => c.volg)) + 1 : 0
+  bord.cats[id] = { emoji: reg(e, now), kleur: reg(k, now), naam: reg(n, now), verborgen: reg(false, now), volg: reg(volg, now) }
+  bord.cats = Object.fromEntries(Object.keys(bord.cats).sort().map((x) => [x, bord.cats[x]]))
+  return id
+}
+
+// Een zichtbare categorie één plek omhoog (-1) of omlaag (+1). Daarna krijgen
+// alle categorieën een nette volgorde 0, 1, 2 … (verborgen achteraan); alleen
+// wat echt verandert, krijgt een nieuwe tijdstempel.
+export function verschuifCat(bord, catId, richting, now) {
+  const zicht = categorieen(bord)
+  const i = zicht.findIndex((c) => c.id === catId)
+  const j = i + richting
+  if (i < 0 || j < 0 || j >= zicht.length) return false
+  ;[zicht[i], zicht[j]] = [zicht[j], zicht[i]]
+  const verborgen = categorieen(bord, { metVerborgen: true }).filter((c) => c.verborgen)
+  ;[...zicht, ...verborgen].forEach((c, n) => zetCat(bord, c.id, 'volg', n, now))
+  return true
+}
+
+// Hangt er (op het bord of in de Gedaan-doos) nog een briefje met deze categorie?
+export function catGebruikt(bord, catId) {
+  return Object.values(bord.briefjes).filter((b) => !b.weg && waarde(b.v, 'cat') === catId).length
 }

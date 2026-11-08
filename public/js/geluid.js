@@ -63,3 +63,21 @@ export function tok() {
   osc.start(nu)
   osc.stop(nu + 0.12)
 }
+
+// "Plop": de punaise springt eruit (Gedaan!). Een toon die snel omhoog schiet.
+export function plop() {
+  const c = context()
+  if (!c) return
+  const nu = c.currentTime
+  const osc = c.createOscillator()
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(260, nu)
+  osc.frequency.exponentialRampToValueAtTime(1100, nu + 0.09)
+  const volume = c.createGain()
+  volume.gain.setValueAtTime(0.0001, nu)
+  volume.gain.exponentialRampToValueAtTime(0.45, nu + 0.01)
+  volume.gain.exponentialRampToValueAtTime(0.0001, nu + 0.14)
+  osc.connect(volume).connect(c.destination)
+  osc.start(nu)
+  osc.stop(nu + 0.15)
+}

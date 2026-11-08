@@ -151,7 +151,15 @@ body::after {
   color: var(--kop-fg);
   box-shadow: var(--kop-schaduw);
 }
+.kop {
+  justify-content: space-between;
+  gap: 10px;
+}
 .kop h1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0;
   font-size: 21px;
   font-weight: 700;
@@ -920,4 +928,790 @@ div.rij {
   line-height: 36px;
   background-image: repeating-linear-gradient(to bottom, transparent 0 34px, var(--lijntje) 34px 35px, transparent 35px 36px);
   background-attachment: local;
+}
+
+
+/* =====================================================================
+   M2: het bord (filters, hartjes, Gedaan-doos, Trek, vrij, categorieën)
+   ===================================================================== */
+
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* ---------- Netjes of vrij (in de kop) ---------- */
+
+.kop-rechts:empty {
+  display: none;
+}
+.weergave {
+  flex: none;
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(30, 14, 2, 0.35);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.weergave button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: none;
+  color: var(--kop-fg);
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.8;
+  cursor: pointer;
+}
+.weergave button[aria-pressed='true'] {
+  background: var(--kop-fg);
+  color: #5e3a1c;
+  opacity: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.weergave button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 1px;
+}
+
+/* ---------- De filterbalk (§5.6) ---------- */
+
+.filterbalk {
+  position: sticky;
+  top: calc(var(--kop-h) + env(safe-area-inset-top));
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 var(--lijst);
+  padding: 8px 10px 8px 0;
+  background: linear-gradient(rgba(60, 30, 8, 0.32), rgba(60, 30, 8, 0.18)), var(--kurk);
+  background-color: var(--kurk-kleur);
+  box-shadow: 0 3px 6px rgba(30, 14, 2, 0.3);
+}
+.chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 3px 6px 4px 10px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 14px), transparent);
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--inkt);
+  background: var(--korrel), var(--papier, var(--p-wit));
+  box-shadow: 0 2px 3px rgba(25, 12, 0, 0.3);
+  opacity: 0.78;
+  transform: rotate(-1deg);
+  cursor: pointer;
+  transition:
+    transform 0.15s,
+    opacity 0.15s,
+    box-shadow 0.15s;
+}
+.chip:nth-child(even) {
+  transform: rotate(1deg);
+}
+.chip[aria-pressed='true'] {
+  opacity: 1;
+  transform: rotate(0) scale(1.04);
+  box-shadow:
+    0 0 0 2px var(--inkt),
+    0 3px 6px rgba(25, 12, 0, 0.35);
+}
+.chip-alles,
+.chip-samen {
+  --papier: var(--p-wit);
+}
+.chip-sorteer {
+  --papier: #f6efe2;
+  opacity: 1;
+  color: #4a3624;
+}
+.chip-sorteer + .chip-alles {
+  margin-left: 4px;
+}
+.chip:focus-visible,
+.trek-knop:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: 2px;
+}
+.trek-knop {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  background: var(--korrel), #fffaf0;
+  box-shadow:
+    0 2px 0 #d8c9ad,
+    0 4px 8px rgba(25, 12, 0, 0.35);
+  transform: rotate(6deg);
+  cursor: pointer;
+}
+.trek-knop:active {
+  transform: rotate(-10deg) scale(0.94);
+}
+
+/* ---------- Filteren en verschuiven in netjes ---------- */
+
+.bord-binnen.klaar .briefje-plek {
+  transition:
+    transform 0.5s cubic-bezier(0.3, 1.25, 0.5, 1),
+    opacity 0.25s ease,
+    visibility 0s;
+}
+/* Wat niet door het filter komt, vervaagt waar het hangt (en doet niet meer mee). */
+.bord-binnen .briefje-plek.uit,
+.bord-binnen[style*='height'] .briefje-plek.uit {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.bord-binnen.klaar .briefje-plek.uit {
+  transition:
+    transform 0.5s cubic-bezier(0.3, 1.25, 0.5, 1),
+    opacity 0.25s ease,
+    visibility 0s 0.25s;
+}
+.filter-leeg {
+  position: absolute;
+  inset: 26px calc(18px + var(--lijst)) auto;
+}
+.filter-leeg[hidden] {
+  display: none;
+}
+.filter-leeg .knop,
+.doos-niks .knop {
+  margin-top: 12px;
+}
+
+/* ---------- Hartjes (§5.4) ---------- */
+
+.hart {
+  width: 13px;
+  height: 13px;
+  fill: var(--pk, #e0453a);
+  flex: none;
+}
+.hartjes {
+  position: absolute;
+  left: 13px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  pointer-events: none;
+}
+.hartjes .hart {
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
+}
+.hart-meer {
+  font: 700 11px var(--ui);
+  margin-left: 2px;
+  color: var(--inkt);
+  opacity: 0.8;
+}
+/* Het grote hart bij een dubbeltik. */
+.hart-pop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  fill: #ff3b5c;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 3px 6px rgba(120, 0, 20, 0.35));
+  pointer-events: none;
+  z-index: 3;
+  transform: translate(-50%, -50%) scale(0);
+}
+.groot-voet {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.groot-voet .groot-meta {
+  margin: 0;
+  flex: 1;
+}
+.hart-knop {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 48px;
+  height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 4px rgba(40, 20, 0, 0.18);
+  color: var(--inkt);
+  font: 700 15px var(--ui);
+  cursor: pointer;
+}
+.hart-knop .hart-groot {
+  width: 26px;
+  height: 26px;
+  overflow: visible;
+}
+.hart-knop:not(.aan) .hart-groot {
+  fill: none;
+  stroke: var(--inkt);
+  stroke-width: 2px;
+}
+.hart-knop:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: 2px;
+}
+
+/* ---------- Het geopende briefje: gedaan, trek, uit de doos ---------- */
+
+.groot-gedaan {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.gedaan-stempel {
+  margin: 0;
+  font: 700 14px var(--ui);
+  color: #1d6b3a;
+}
+.gedaan-notitie {
+  margin: 6px 0 0;
+  font-size: 26px;
+  line-height: 30px;
+  overflow-wrap: anywhere;
+}
+.trek-kop {
+  margin: 4px 0 18px;
+  text-align: center;
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.laag .groot-plek.in-doos .plakband {
+  top: -12px;
+}
+
+/* Het formulier "Gedaan!" onder het briefje. */
+.gedaan-form {
+  margin-top: 18px;
+  padding: 16px 16px 4px;
+  border-radius: 10px;
+  background: var(--korrel), #fffaf0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  color: #33261a;
+}
+.gedaan-kop {
+  margin: 0 0 10px;
+  font-family: var(--hand);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--inkt);
+}
+.gedaan-form .laag-knoppen {
+  margin: 16px -16px 0;
+  padding: 0 16px 12px;
+}
+.veld {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.veld input,
+.veld textarea {
+  font: 16px var(--ui);
+  color: #2a1f15;
+  padding: 10px 12px;
+  border: 1.5px solid #d9cbb4;
+  border-radius: 10px;
+  background: #fff;
+  width: 100%;
+}
+.veld textarea {
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--inkt);
+  resize: vertical;
+}
+.veld input:focus,
+.veld textarea:focus {
+  outline: none;
+  border-color: #1d64d8;
+  box-shadow: 0 0 0 3px rgba(29, 100, 216, 0.2);
+}
+
+/* ---------- Plakband (Gedaan-doos) ---------- */
+
+.plakband {
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 64px;
+  height: 22px;
+  margin-left: -32px;
+  background: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1)), rgba(246, 236, 200, 0.72);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transform: rotate(-4deg);
+  clip-path: polygon(0 8%, 6% 0, 12% 10%, 20% 2%, 30% 9%, 42% 1%, 55% 8%, 68% 0, 80% 9%, 92% 2%, 100% 8%, 100% 92%, 93% 100%, 82% 90%, 70% 99%, 58% 91%, 45% 100%, 32% 92%, 20% 99%, 9% 91%, 0 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ---------- De Gedaan-doos (§5.8): een plakboek ---------- */
+
+.doos {
+  padding: 12px calc(14px + var(--lijst)) 40px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.doos-kop {
+  margin: 8px 4px 0;
+  font-family: var(--hand);
+  font-size: 36px;
+  line-height: 1.1;
+  color: var(--kop-op-kurk);
+  text-shadow: var(--tekst-op-kurk);
+}
+.doos-teller {
+  margin: 2px 6px 10px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--kop-op-kurk);
+  text-shadow: var(--tekst-op-kurk);
+}
+.maand {
+  margin: 22px 0 14px;
+  text-align: center;
+}
+.maand span {
+  display: inline-block;
+  padding: 5px 16px 6px;
+  font-family: var(--hand);
+  font-size: 24px;
+  line-height: 1;
+  color: #3a2a1b;
+  background: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.1)), rgba(246, 236, 200, 0.9);
+  transform: rotate(-1.5deg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.plakboek {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 22px 14px;
+  align-items: start;
+}
+.geplakt-plek {
+  position: relative;
+  transform: rotate(var(--draai, 0deg));
+  filter: var(--schaduw);
+}
+.geplakt {
+  min-height: 96px;
+  padding-top: 26px;
+  font-size: 20px;
+  line-height: 24px;
+  --regel: 24px;
+}
+.geplakt .tekst {
+  -webkit-line-clamp: 5;
+}
+.geplakt-datum {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  font: 700 11px var(--ui);
+  color: #1d6b3a;
+  letter-spacing: 0.01em;
+}
+.geplakt-notitie {
+  display: block;
+  margin-top: 6px;
+  font-size: 17px;
+  line-height: 20px;
+  opacity: 0.85;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.geplakt-plek:has(.geplakt:focus-visible) {
+  outline: 3px solid #1d64d8;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* ---------- Vrij (§5.2): de echte-prikbordmodus ---------- */
+
+html.vrij-modus,
+html.vrij-modus body {
+  overflow: hidden;
+}
+.bord-vrij {
+  min-height: 0;
+}
+.vrij {
+  position: fixed;
+  left: var(--lijst);
+  right: var(--lijst);
+  top: 120px;
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
+  overflow: hidden;
+  touch-action: none;
+  /* De muur achter het bord. */
+  background: linear-gradient(rgba(40, 20, 5, 0.55), rgba(40, 20, 5, 0.55)), var(--kurk);
+  background-color: #6b4628;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.vrij-wereld {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background: var(--kurk);
+  background-color: var(--kurk-kleur);
+  /* Het bord zelf: een houten rand eromheen. */
+  box-shadow:
+    0 0 0 6px var(--hout),
+    0 0 0 7px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.vrij-wereld.vlot {
+  transition: transform 0.3s cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+.vrij-wereld .briefje-plek {
+  -webkit-touch-callout: none;
+}
+.vrij-wereld.klaar .briefje-plek {
+  transition:
+    transform 0.5s cubic-bezier(0.3, 1.25, 0.5, 1),
+    opacity 0.25s ease,
+    filter 0.25s ease;
+}
+.vrij-wereld .briefje-plek.gedimd {
+  opacity: 0.3;
+}
+.vrij-wereld .briefje-plek.gedimd .briefje {
+  filter: grayscale(0.7);
+}
+/* Opgetild: de schaduw groeit en het briefje komt iets naar je toe. */
+.vrij-wereld .briefje-plek.sleept {
+  transition: none;
+  z-index: 100000 !important;
+}
+.briefje-plek.opgetild {
+  filter: drop-shadow(8px 18px 10px rgba(35, 15, 2, 0.45));
+}
+.briefje-plek.opgetild .briefje {
+  transform: scale(1.07) rotate(-2deg);
+  transition: transform 0.18s ease-out;
+}
+.briefje-plek.opgetild .punaise {
+  opacity: 0;
+  transform: translateY(-14px) scale(1.4);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.zoomknoppen {
+  position: absolute;
+  left: 12px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--korrel), #fffaf0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.zoomknoppen button {
+  width: 46px;
+  height: 44px;
+  border: 0;
+  background: none;
+  font: 600 24px/1 var(--ui);
+  color: #4a3624;
+  cursor: pointer;
+}
+.zoomknoppen button + button {
+  border-top: 1px solid rgba(80, 55, 30, 0.18);
+}
+.zoomknoppen button:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: -3px;
+}
+
+/* ---------- Panelen (categorie-editor) ---------- */
+
+.paneel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px);
+}
+.paneel h2 {
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.05;
+  margin: 0 4px 6px;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.paneel-uitleg {
+  margin: 0 4px 14px;
+  color: #fff4e6;
+  font-size: 14px;
+  line-height: 1.4;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.paneel .groep-kop {
+  margin-top: 26px;
+}
+.cat-rij {
+  gap: 4px;
+  padding: 6px 8px 6px 6px;
+}
+.cat-knop {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  color: #33261a;
+  cursor: pointer;
+}
+.cat-knop strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-staal {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  border-radius: 6px;
+  background: var(--korrel), var(--papier);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transform: rotate(-3deg);
+}
+.cat-pijl {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(120, 90, 60, 0.1);
+  color: #5a4532;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cat-pijl:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.cat-knop:focus-visible,
+.cat-pijl:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: 1px;
+}
+.klein-knop {
+  padding: 9px 14px;
+  font-size: 14px;
+}
+.knop-tekst {
+  display: block;
+  margin: 18px auto 0;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  font: 650 15px var(--ui);
+  color: #fff4e6;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+#cat-form .veld {
+  color: #fff4e6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+#cat-form .veld input {
+  text-shadow: none;
+}
+.emoji-veld {
+  font-size: 22px !important;
+  width: 90px !important;
+  text-align: center;
+}
+.cat-voorbeeld-plek {
+  position: relative;
+  width: 210px;
+  margin: 10px auto 22px;
+  transform: rotate(-2deg);
+  filter: var(--schaduw);
+}
+.cat-voorbeeld {
+  min-height: 70px;
+  cursor: default;
+}
+.emoji-keus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -4px 0 14px;
+}
+.emoji-keus button {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 250, 240, 0.9);
+  font-size: 21px;
+  cursor: pointer;
+}
+.kleuren {
+  border: 0;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kleuren legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: #fff4e6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.kleur {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--korrel), var(--papier);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  position: relative;
+}
+.kleur input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.kleur:has(input:checked) {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 5px var(--inkt),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  transform: scale(1.06);
+}
+.kleur:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 800 20px var(--ui);
+  color: var(--inkt);
+}
+.kleur:has(input:focus-visible) {
+  outline: 3px solid #1d64d8;
+  outline-offset: 4px;
+}
+.fout {
+  min-height: 1.2em;
+  margin: 4px 4px 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffd9c9;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.fout:empty {
+  min-height: 0;
+  margin: 0;
+}
+.laag > .paneel {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Confetti ---------- */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+}
+.confetti span {
+  position: absolute;
+  display: block;
+}
+
+/* Minder beweging: ook hier alleen zachte overgangen (§5.3). */
+@media (prefers-reduced-motion: reduce) {
+  .bord-binnen.klaar .briefje-plek,
+  .vrij-wereld.klaar .briefje-plek {
+    transition:
+      opacity 0.2s,
+      visibility 0s;
+  }
+  .bord-binnen.klaar .briefje-plek.uit {
+    transition:
+      opacity 0.2s,
+      visibility 0s 0.2s;
+  }
+  .vrij-wereld.vlot,
+  .chip,
+  .briefje-plek.opgetild .briefje {
+    transition: none;
+  }
 }

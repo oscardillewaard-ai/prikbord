@@ -9,42 +9,11 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { start } from './serve.mjs'
-import { beginStaat, nieuwBriefje, voegLidToe } from '../public/js/model.js'
+import { demoStaat } from './demo.mjs'
 
 const UIT = process.argv[2] || fileURLToPath(new URL('../docs/m1-stijl/', import.meta.url))
 const POORT = 4319
 const TRAAG = 10 // slow motion voor de filmstrip
-
-// Een demobord met briefjes van drie mensen (alleen voor de plaatjes).
-function demoStaat() {
-  const nu = Date.parse('2026-11-08T12:00:00+01:00')
-  const s = beginStaat(nu - 30 * 864e5)
-  const bord = s.borden[s.bord]
-  const ik = s.apparaat.ik[s.bord]
-  bord.leden[ik].naam = { w: 'Oscar', t: nu }
-  const tara = voegLidToe(bord, { id: 'lidtara1', naam: 'Tara', kleur: 'blauw', now: nu })
-  const sam = voegLidToe(bord, { id: 'lidsam01', naam: 'Sam', kleur: 'groen', now: nu })
-  const briefjes = [
-    [ik, 'vakantie', 'Met de trein door Italië: Milaan, Bologna voor de pasta, Florence voor het ijs en dan een week aan zee bij Positano 🍦🚂 En onderweg nog even naar Napels voor de echte pizza'],
-    [tara, 'uiteten', 'Sushi in Den Haag 🍣'],
-    [ik, 'recepten', 'Shakshuka met feta en véél koriander'],
-    [sam, 'bucketlist', 'Noorderlicht zien ✨'],
-    [tara, 'weekend', 'Weekendje België: Gent, frietjes en een ruïne bezoeken'],
-    [ik, 'todo', 'Fietsband plakken 🚲'],
-    [sam, 'dagjeuit', 'Efteling in de winter ❄️'],
-    [tara, 'restaurants', 'De Kas in Amsterdam (reserveren!)'],
-    [ik, 'todo', 'Dakgoot schoonmaken voor de herfst 🍂'],
-    [tara, 'recepten', 'Pompoensoep met gember'],
-    [sam, 'bucketlist', 'Ooit een marathon lopen 🏃'],
-    [ik, 'dagjeuit', 'Fietsen over de Afsluitdijk'],
-  ]
-  briefjes.forEach(([door, cat, tekst], i) => {
-    nieuwBriefje(bord, { id: `demo${String(i + 1).padStart(2, '0')}`, door, tekst, cat, now: nu - (i + 1) * 3600e3 })
-  })
-  s.apparaat.seenVersion = 1
-  s.apparaat.laatsteCat[s.bord] = 'weekend'
-  return s
-}
 
 async function pagina(browser, staat, { traag = 1, schaal = 2 } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: schaal, locale: 'nl-NL', timezoneId: 'Europe/Amsterdam', serviceWorkers: 'block' })

@@ -87,3 +87,24 @@ test('actief bord dat niet bestaat → het eerste bord', () => {
   s.bord = 'bestaatniet'
   assert.equal(schoonStaat(s).bord, id)
 })
+
+test('apparaat: sorteren en laatste back-up worden bewaard, onzin valt weg', () => {
+  const s = beginStaat(NU)
+  const json = JSON.parse(JSON.stringify(s))
+  json.apparaat.sorteer = { [s.bord]: 'hartjes', anderbord1: 'hartjes' }
+  json.apparaat.weergave = { [s.bord]: 'vrij' }
+  json.apparaat.laatsteBackup = NU
+  let schoon = schoonStaat(json)
+  assert.deepEqual(schoon.apparaat.sorteer, { [s.bord]: 'hartjes' })
+  assert.deepEqual(schoon.apparaat.weergave, { [s.bord]: 'vrij' })
+  assert.equal(schoon.apparaat.laatsteBackup, NU)
+  json.apparaat.sorteer = { [s.bord]: 'willekeurig' }
+  json.apparaat.laatsteBackup = 'gisteren'
+  schoon = schoonStaat(json)
+  assert.deepEqual(schoon.apparaat.sorteer, {})
+  assert.equal(schoon.apparaat.laatsteBackup, 0)
+  // Oude opslag uit M1 (zonder deze velden) blijft gewoon werken.
+  delete json.apparaat.sorteer
+  delete json.apparaat.laatsteBackup
+  assert.deepEqual(schoonStaat(json).apparaat.sorteer, {})
+})
