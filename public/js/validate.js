@@ -167,6 +167,7 @@ function schoonApparaat(raw, borden) {
     seenVersion: isGetal(a.seenVersion) ? a.seenVersion : 0,
     ik: perBord(a.ik, (v) => typeof v === 'string' && ID_RE.test(v)),
     weergave: perBord(a.weergave, (v) => v === 'netjes' || v === 'vrij'),
+    laatsteCat: perBord(a.laatsteCat, (v) => typeof v === 'string' && ID_RE.test(v)),
     gezien: perBord(a.gezien, isT),
     concept,
   }

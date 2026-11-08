@@ -1,29 +1,17 @@
 /* Prikbord. Mobiel eerst (390 px), met één hand te bedienen.
-   Bovenaan het gedeelde deel, onderaan de drie stijlvoorstellen uit M1
-   (html[data-stijl="a|b|c"]). Na de keuze blijft er één over. */
+   Stijl (keuze van Oscar, M1): het bord van voorstel A (warm kurk, houten
+   lijst, bolle punaises) met de briefjes van voorstel C (kladblokpapier met
+   lijntjes en de gaatjes van de scheurlijn, Caveat vet in balpenblauw).
+   Alle kleuren en maten staan als variabelen bovenin :root. */
 
-/* ---------- Letters (zelf gehost, OFL-licenties in fonts/) ---------- */
+/* ---------- Letter (zelf gehost, OFL-licentie in fonts/) ---------- */
 
-@font-face {
-  font-family: 'Caveat';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url(fonts/caveat-latin-500-normal.woff2) format('woff2');
-}
 @font-face {
   font-family: 'Caveat';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
   src: url(fonts/caveat-latin-700-normal.woff2) format('woff2');
-}
-@font-face {
-  font-family: 'Patrick Hand';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(fonts/patrick-hand-latin-400-normal.woff2) format('woff2');
 }
 
 /* ---------- Basis ---------- */
@@ -32,12 +20,49 @@
   --ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --kop-h: 52px;
   --tab-h: 62px;
-  --lijst: 0px;
   --korrel: url(img/korrel.svg);
-  --inkt: #2b2219;
-  --pin-rood: #e0453a;
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
+
+  /* Het bord: warm kurk in een houten lijst. */
+  --kurk: url(img/kurk.svg);
+  --kurk-kleur: #b07642;
+  --hout: #6e4524;
+  --lijst: 7px;
+  --kop-bg: url(img/hout.svg), linear-gradient(#7a4d29, #5e3a1c);
+  --kop-fg: #fff3e0;
+  --kop-schaduw: 0 3px 6px rgba(30, 14, 2, 0.45);
+  --tab-bg: var(--korrel), linear-gradient(#fbf4e6, #f3e7d0);
+  --tab-fg: #6d5843;
+  --tab-actief: #9e2f22;
+  --tab-schaduw: 0 -2px 0 #6e4524, 0 -4px 10px rgba(30, 14, 2, 0.35);
+  --accent: #b73a2b;
+  --accent-fg: #fff;
+  --groep-bg: #fbf7ee;
+  --groep-hoek: 6px;
+  --kop-op-kurk: #fff6e8;
+  --tekst-op-kurk: 0 1px 3px rgba(40, 18, 2, 0.75);
+  --schaduw: drop-shadow(2px 5px 4px rgba(45, 22, 5, 0.4));
+
+  /* De briefjes: kladblokpapier met lijntjes, balpenblauw. */
+  --hand: 'Caveat', 'Bradley Hand', cursive;
+  --hand-gewicht: 700;
+  --hand-grootte: 22px;
+  --hand-regel: 26px;
+  --inkt: #1f3474;
+  --briefje-pad: 20px 12px 24px 14px;
+  --lijntje: rgba(60, 100, 170, 0.28);
+  --p-zon: #fff1a8;
+  --p-perzik: #ffdcbc;
+  --p-koraal: #ffc9bd;
+  --p-roze: #ffd3e4;
+  --p-lila: #e4d8ff;
+  --p-lucht: #d3ebff;
+  --p-mint: #cff5e1;
+  --p-salie: #e1f0c8;
+  --p-zand: #f3e6c9;
+  --p-wit: #fffdf6;
+  --blok-lijm: #2c2c2c;
 }
 
 * {
@@ -90,7 +115,7 @@ button {
   font-weight: var(--hand-gewicht);
 }
 
-/* De lijst langs de zijkanten (alleen als de stijl er een heeft). */
+/* De houten lijst langs de zijkanten. */
 body::before,
 body::after {
   content: '';
@@ -199,6 +224,9 @@ main {
   background-position: var(--papier-positie, 0 0);
   cursor: pointer;
   outline: none;
+}
+.briefje {
+  transform-origin: var(--px, 50%) 6px;
 }
 .briefje .tekst {
   display: -webkit-box;
@@ -317,13 +345,16 @@ main {
   display: grid;
   place-items: center;
   transform: rotate(-4deg);
-  background: var(--korrel), var(--blok-extra, none), var(--blok-papier);
+  background:
+    var(--korrel),
+    repeating-linear-gradient(to bottom, transparent 0 13px, var(--lijntje) 13px 14px),
+    var(--papier, var(--p-wit));
   border-top: 7px solid var(--blok-lijm);
   border-radius: 2px 2px 3px 3px;
   box-shadow:
-    0 2px 0 var(--blok-onder1),
-    0 4px 0 var(--blok-onder2),
-    0 6px 0 var(--blok-onder3),
+    0 2px 0 color-mix(in srgb, var(--papier, var(--p-wit)) 92%, #5a4a30),
+    0 4px 0 color-mix(in srgb, var(--papier, var(--p-wit)) 85%, #5a4a30),
+    0 6px 0 color-mix(in srgb, var(--papier, var(--p-wit)) 78%, #5a4a30),
     3px 12px 14px rgba(35, 18, 4, 0.4);
 }
 .blok-plus {
@@ -432,9 +463,29 @@ main {
   color: var(--inkt);
 }
 .laag::backdrop {
+  background: transparent;
+}
+.laag-achter {
+  position: fixed;
+  inset: 0;
   background: rgba(28, 16, 6, 0.68);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
+  animation: invagen 0.25s ease-out;
+}
+@keyframes invagen {
+  from {
+    opacity: 0;
+  }
+}
+.laag > .groot,
+.laag > .vel,
+.laag > .nieuws {
+  position: relative;
+  z-index: 1;
+}
+.laag.bezig {
+  pointer-events: none;
 }
 .laag[data-soort='vel'] {
   top: var(--vvtop, 0px);
@@ -451,7 +502,7 @@ main {
 
 .groot-plek {
   position: relative;
-  transform: rotate(-1deg);
+  transform-origin: 0 0;
 }
 .groot-papier {
   cursor: default;
@@ -533,6 +584,7 @@ main {
 }
 .vel-plek {
   position: relative;
+  transform-origin: 0 0;
   flex: 1 1 auto;
   display: flex;
   min-height: 150px;
@@ -784,20 +836,29 @@ div.rij {
 
 /* ---------- Beweging ---------- */
 
-@keyframes plop {
-  0% {
-    transform: scale(1.25) translateY(-14px);
-  }
-  55% {
-    transform: scale(0.97);
-  }
-  100% {
-    transform: none;
-  }
+/* Een briefje dat net van het bord is gehaald, of nog moet landen. */
+.briefje-plek.verstopt {
+  visibility: hidden;
 }
-.net-geprikt .briefje {
-  animation: plop 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+/* De kopie die van het schrijfvel naar zijn plek op het bord vliegt. */
+.vlieger {
+  position: fixed;
+  margin: 0;
+  transform-origin: 0 0;
+  z-index: 5;
+  pointer-events: none;
 }
+.vlieger .punaise {
+  opacity: 0;
+}
+/* Snippers van de scheurrand. */
+.snipper {
+  position: fixed;
+  z-index: 6;
+  pointer-events: none;
+  background: var(--papier, var(--p-wit));
+}
+
 @keyframes schud {
   20%,
   60% {
@@ -825,224 +886,38 @@ div.rij {
   }
 }
 
-/* =====================================================================
-   Stijlvoorstel A · Klassiek kurk
-   Warm kurk met een houten lijst, pastel blokpapier dat bovenaan echt is
-   afgescheurd, Caveat en glimmende bolle punaises.
-   ===================================================================== */
+/* ---------- Punaises: glimmend en bol ---------- */
 
-html[data-stijl='a'] {
-  --kurk: url(img/kurk-a.svg);
-  --kurk-kleur: #b07642;
-  --hout: #6e4524;
-  --lijst: 7px;
-  --kop-bg: url(img/hout.svg), linear-gradient(#7a4d29, #5e3a1c);
-  --kop-fg: #fff3e0;
-  --kop-schaduw: 0 3px 6px rgba(30, 14, 2, 0.45);
-  --hand: 'Caveat', 'Bradley Hand', cursive;
-  --hand-gewicht: 500;
-  --hand-grootte: 23px;
-  --hand-regel: 1.12;
-  --inkt: #2b2219;
-  --schaduw: drop-shadow(2px 5px 4px rgba(45, 22, 5, 0.4));
-  --p-zon: #fbe7a1;
-  --p-perzik: #fbd3b0;
-  --p-koraal: #f8c0b4;
-  --p-roze: #f8cddd;
-  --p-lila: #dccff2;
-  --p-lucht: #c9e2f6;
-  --p-mint: #c8ecd9;
-  --p-salie: #d7e6c1;
-  --p-zand: #eadcc2;
-  --p-wit: #fbf7ee;
-  --blok-papier: #fbe7a1;
-  --blok-lijm: #b73a2b;
-  --blok-onder1: #f2dc90;
-  --blok-onder2: #e6cd80;
-  --blok-onder3: #d8bd6f;
-  --tab-bg: var(--korrel), linear-gradient(#fbf4e6, #f3e7d0);
-  --tab-fg: #6d5843;
-  --tab-actief: #9e2f22;
-  --tab-schaduw: 0 -2px 0 #6e4524, 0 -4px 10px rgba(30, 14, 2, 0.35);
-  --accent: #b73a2b;
-  --accent-fg: #fff;
-  --groep-bg: #fbf7ee;
-  --groep-hoek: 6px;
-  --kop-op-kurk: #fff6e8;
-  --tekst-op-kurk: 0 1px 3px rgba(40, 18, 2, 0.75);
-}
-html[data-stijl='a'] .punaise {
+.punaise {
   background:
     radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0 11%, transparent 32%),
     radial-gradient(circle at 50% 46%, var(--pk) 0 50%, color-mix(in srgb, var(--pk) 58%, #000) 100%);
   box-shadow: 2px 3px 3px rgba(40, 18, 2, 0.45);
 }
 
-/* =====================================================================
-   Stijlvoorstel B · Licht & luchtig
-   Licht honingkurk zonder zware lijst, zachte moderne papierkleuren met
-   rafelrandjes rondom, Patrick Hand en platte punaises.
-   ===================================================================== */
+/* ---------- Kladblokpapier ---------- */
 
-html[data-stijl='b'] {
-  --kurk: url(img/kurk-b.svg);
-  --kurk-kleur: #d4b083;
-  --lijst: 0px;
-  --kop-bg: rgba(255, 250, 242, 0.88);
-  --kop-fg: #4a3b2c;
-  --kop-schaduw: 0 1px 0 rgba(120, 90, 50, 0.18);
-  --hand: 'Patrick Hand', 'Comic Sans MS', cursive;
-  --hand-gewicht: 400;
-  --hand-grootte: 19px;
-  --hand-regel: 1.25;
-  --inkt: #33302b;
-  --briefje-pad: 18px 13px 22px;
-  --schaduw: drop-shadow(0 3px 5px rgba(90, 60, 25, 0.22));
-  --p-zon: #f6e7b4;
-  --p-perzik: #f4dcc6;
-  --p-koraal: #f1cfc4;
-  --p-roze: #f0d6dd;
-  --p-lila: #e1dbef;
-  --p-lucht: #d6e3ec;
-  --p-mint: #d3e8df;
-  --p-salie: #dde5cf;
-  --p-zand: #ece2cf;
-  --p-wit: #fdfbf6;
-  --blok-papier: #fdfbf6;
-  --blok-lijm: #8aa37f;
-  --blok-onder1: #f0ece2;
-  --blok-onder2: #e6e0d3;
-  --blok-onder3: #dbd3c3;
-  --tab-bg: rgba(255, 251, 245, 0.94);
-  --tab-fg: #7b6c5c;
-  --tab-actief: #4f6b47;
-  --tab-schaduw: 0 -1px 0 rgba(120, 90, 50, 0.16);
-  --accent: #5b7a52;
-  --accent-fg: #fff;
-  --groep-bg: rgba(255, 252, 247, 0.96);
-  --groep-hoek: 16px;
-  --kop-op-kurk: #4a3b2c;
-  --tekst-op-kurk: 0 1px 0 rgba(255, 245, 225, 0.6);
-}
-html[data-stijl='b'] .kop {
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-}
-html[data-stijl='b'] .punaise {
-  width: 16px;
-  height: 16px;
-  margin-left: -8px;
-  top: -3px;
-  /* Plat schijfje met een randje, zonder bolle glans. */
-  background:
-    radial-gradient(ellipse at 42% 32%, rgba(255, 255, 255, 0.45) 0 16%, transparent 34%),
-    radial-gradient(circle, var(--pk) 0 58%, color-mix(in srgb, var(--pk) 78%, #000) 62% 100%);
-  box-shadow:
-    0 1px 0 color-mix(in srgb, var(--pk) 55%, #000),
-    0 2px 2px rgba(60, 40, 15, 0.28);
-}
-html[data-stijl='b'] .blok-vel {
-  border-radius: 4px;
-}
-html[data-stijl='b'] .tabbar button[aria-current='page']::after {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--tab-actief);
-  margin-top: 1px;
-}
-
-/* =====================================================================
-   Stijlvoorstel C · Schoolschrift
-   Grof donker kurk in een stevige lijst, gelinieerd kladblokpapier met
-   gaatjes van de scheurlijn, Caveat vet in balpenblauw en speldenknoppen.
-   ===================================================================== */
-
-html[data-stijl='c'] {
-  --kurk: url(img/kurk-c.svg);
-  --kurk-kleur: #8e5b33;
-  --hout: #3f2614;
-  --lijst: 9px;
-  --kop-bg: url(img/hout.svg), linear-gradient(#4a2d17, #34200f);
-  --kop-fg: #ffe9c4;
-  --kop-schaduw: 0 3px 0 #24150a, 0 5px 10px rgba(0, 0, 0, 0.4);
-  --hand: 'Caveat', 'Bradley Hand', cursive;
-  --hand-gewicht: 700;
-  --hand-grootte: 22px;
-  --hand-regel: 26px;
-  --inkt: #1f3474;
-  --briefje-pad: 20px 12px 24px 14px;
-  --schaduw: drop-shadow(3px 6px 3px rgba(20, 10, 0, 0.5));
-  --p-zon: #fff1a8;
-  --p-perzik: #ffdcbc;
-  --p-koraal: #ffc9bd;
-  --p-roze: #ffd3e4;
-  --p-lila: #e4d8ff;
-  --p-lucht: #d3ebff;
-  --p-mint: #cff5e1;
-  --p-salie: #e1f0c8;
-  --p-zand: #f3e6c9;
-  --p-wit: #fffdf6;
-  --blok-papier: #fffdf6;
-  --blok-extra: repeating-linear-gradient(to bottom, transparent 0 13px, rgba(60, 100, 170, 0.3) 13px 14px);
-  --blok-lijm: #2c2c2c;
-  --blok-onder1: #eeeadf;
-  --blok-onder2: #e2ddcf;
-  --blok-onder3: #d4cebd;
-  --tab-bg: url(img/hout.svg), linear-gradient(#4a2d17, #34200f);
-  --tab-fg: #e6cfa8;
-  --tab-actief: #ffd166;
-  --tab-schaduw: 0 -3px 0 #24150a;
-  --accent: #1f3474;
-  --accent-fg: #fff;
-  --groep-bg: #fffdf6;
-  --groep-hoek: 2px;
-  --kop-op-kurk: #ffefd2;
-  --tekst-op-kurk: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-html[data-stijl='c'] .punaise {
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
-  top: 1px;
-  background: radial-gradient(circle at 32% 28%, #fff 0 13%, var(--pk) 36%, color-mix(in srgb, var(--pk) 52%, #000) 100%);
-  box-shadow: 1px 2px 2px rgba(0, 0, 0, 0.45);
-}
-/* De schaduw van de speld zelf, schuin naar rechtsonder. */
-html[data-stijl='c'] .punaise::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 9px;
-  width: 13px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.4), transparent);
-  transform-origin: 0 50%;
-  transform: rotate(calc(35deg + var(--pd, 0deg) / 3));
-}
-/* Lijntjes van het kladblok, gelijk met de regels tekst. Per element
-   gezet, zodat het grote briefje grotere lijntjes krijgt (--regel). */
-html[data-stijl='c'] .briefje,
-html[data-stijl='c'] .leeg-briefje {
-  --regel: 26px;
-  --papier-extra: repeating-linear-gradient(to bottom, transparent 0 calc(var(--regel) - 1px), rgba(60, 100, 170, 0.28) calc(var(--regel) - 1px) var(--regel));
+/* Lijntjes, gelijk met de regels tekst. Per element gezet (--regel), zodat
+   een groter briefje grotere lijntjes kan krijgen. */
+.briefje,
+.leeg-briefje {
+  --regel: var(--hand-regel);
+  --papier-extra: repeating-linear-gradient(to bottom, transparent 0 calc(var(--regel) - 1px), var(--lijntje) calc(var(--regel) - 1px) var(--regel));
   --papier-positie: 0 0, 0 calc(var(--regel) * 0.77), 0 0;
+}
+.leeg-briefje {
+  line-height: var(--regel);
 }
 /* Groot briefje en schrijfvel: de lijntjes op het tekstvak zelf, zodat ze
    precies onder de regels staan en in het schrijfvel meescrollen. */
-html[data-stijl='c'] .groot-papier,
-html[data-stijl='c'] .vel-papier {
+.groot-papier,
+.vel-papier {
   --papier-extra: none;
 }
-html[data-stijl='c'] .groot-tekst,
-html[data-stijl='c'] .vel-papier textarea {
+.groot-tekst,
+.vel-papier textarea {
   font-size: 30px;
   line-height: 36px;
-  background-image: repeating-linear-gradient(to bottom, transparent 0 34px, rgba(60, 100, 170, 0.3) 34px 35px, transparent 35px 36px);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 34px, var(--lijntje) 34px 35px, transparent 35px 36px);
   background-attachment: local;
-}
-html[data-stijl='c'] .leeg-briefje {
-  line-height: var(--regel);
 }

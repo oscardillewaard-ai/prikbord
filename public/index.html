@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="nl" data-stijl="a">
+<html lang="nl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -12,7 +12,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/png" href="icons/icon-192.png" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="preload" href="fonts/caveat-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/caveat-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
     <title>Prikbord</title>
   </head>
@@ -35,6 +35,7 @@
     </nav>
 
     <dialog id="laag" class="laag" aria-labelledby="laag-titel"></dialog>
+    <div id="sr" class="vh" aria-live="polite"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" popover="manual" hidden></div>
     <input id="import-bestand" type="file" accept="application/json,.json" hidden />
 

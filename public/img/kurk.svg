@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
-  <!-- Kurk A (klassiek): warm middenbruin met fijne donkere korrels. -->
+  <!-- Kurk: warm middenbruin met fijne donkere korrels. -->
   <filter id="grof" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
     <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="3" seed="2" stitchTiles="stitch"/>
     <feColorMatrix values="0 0 0 0 0.86  0 0 0 0 0.62  0 0 0 0 0.38  0 0 0 1.5 -0.6"/>

@@ -18,6 +18,18 @@ const tmp = await mkdtemp(join(tmpdir(), 'prikbord-'))
 
 async function nieuwePagina(opties = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'nl-NL', acceptDownloads: true, ...opties })
+  // Tel hoe vaak er een AudioContext gemaakt wordt (geluid aan of uit).
+  await ctx.addInitScript(() => {
+    window.__geluid = 0
+    const Echt = window.AudioContext
+    if (Echt)
+      window.AudioContext = class extends Echt {
+        constructor(...a) {
+          super(...a)
+          window.__geluid++
+        }
+      }
+  })
   const p = await ctx.newPage()
   p.on('pageerror', (e) => uitslag.push(`FAIL  fout in de pagina — ${String(e).slice(0, 140)}`))
   p.on('dialog', (d) => d.accept())
@@ -33,7 +45,7 @@ async function prikBriefje(p, tekst, cat) {
   await p.fill('#vel-tekst', tekst)
   await p.click('.prik')
   await p.waitForSelector('.laag:not([open])', { state: 'attached' })
-  await p.waitForTimeout(150)
+  await p.waitForTimeout(500) // de punaise prikt nog even na
 }
 
 // 1. Eerste start
@@ -67,8 +79,41 @@ ok('geopend briefje toont wie het prikte', (await p.locator('.groot-meta').inner
 await p.click('[data-laag="bewerk"]')
 await p.fill('#vel-tekst', 'Shakshuka met feta en véél koriander')
 await p.click('.prik')
-await p.waitForTimeout(200)
+await p.waitForSelector('.laag:not([open])', { state: 'attached' })
 ok('bewerken past de tekst aan', (await p.locator('.bord-binnen').innerText()).includes('met feta en véél'))
+
+// 3b. Het scheur-en-prik-moment
+ok('blokje heeft de kleur van de laatst gebruikte categorie (Recepten = salie)', (await p.locator('#blok .blok-vel').getAttribute('class')).includes('papier-salie'))
+const geluidVoor = await p.evaluate(() => window.__geluid)
+await p.click('#blok')
+ok('scheuren: er dwarrelen snippers, in beeld', (await p.locator('.laag .snipper').count()) > 0 && (await p.evaluate(() => {
+  const r = document.querySelector('.laag .snipper')?.getBoundingClientRect()
+  return !!r && getComputedStyle(document.querySelector('.laag .snipper')).position === 'fixed' && r.top > 0 && r.top < innerHeight
+})))
+ok('scheuren: geluid gaat aan na de tik (AudioContext)', (await p.evaluate(() => window.__geluid)) >= Math.max(1, geluidVoor))
+ok('scheuren: het vel krijgt de kleur van het blokje', (await p.locator('#vel-papier').getAttribute('class')).includes('papier-salie'))
+ok('scheuren: het tekstvak heeft meteen focus', await p.evaluate(() => document.activeElement?.id === 'vel-tekst'))
+await p.fill('#vel-tekst', 'Pompoensoep met gember')
+await p.click('.prik')
+await p.waitForSelector('.laag .vlieger', { state: 'attached', timeout: 2000 })
+const vliegt = await p.evaluate(() => {
+  const v = document.querySelector('.laag .vlieger')
+  const r = v.getBoundingClientRect()
+  return getComputedStyle(v).position === 'fixed' && r.bottom > 0 && r.top < innerHeight && r.width > 20
+})
+ok('prikken: het briefje vliegt zichtbaar naar het bord', vliegt)
+await p.waitForSelector('.laag:not([open])', { state: 'attached' })
+const geland = p.locator('.bord-binnen .briefje-plek', { hasText: 'Pompoensoep' })
+ok('prikken: na het landen hangt het briefje zichtbaar op het bord', (await geland.count()) === 1 && !(await geland.getAttribute('class')).includes('verstopt'))
+ok('prikken: geen losse vlieger of snippers achtergebleven', (await p.locator('.vlieger, .snipper').count()) === 0)
+// Openen en met Esc terughangen
+await geland.locator('.briefje').click()
+await p.waitForSelector('.laag[open] .groot')
+ok('openen: het briefje is van het bord gehaald (verstopt)', (await geland.getAttribute('class')).includes('verstopt'))
+await p.waitForTimeout(500)
+await p.keyboard.press('Escape')
+await p.waitForSelector('.laag:not([open])', { state: 'attached' })
+ok('Esc: het briefje hangt weer op het bord', !(await geland.getAttribute('class')).includes('verstopt'))
 
 // 4. Concept: half geschreven briefje komt terug na herladen (regel 12)
 await p.click('#blok')
@@ -85,13 +130,14 @@ ok('weggooien wist het concept', (await opslag(p)).apparaat.concept === null)
 await p.locator('.bord-binnen .briefje-plek').first().locator('.briefje').click()
 await p.click('[data-laag="weg"]')
 await p.waitForTimeout(150)
-ok('weghalen: briefje meteen van het bord', (await briefjesOpBord(p)) === 1)
+ok('weghalen: briefje meteen van het bord', (await briefjesOpBord(p)) === 2)
 await p.click('.toast-actie')
 await p.waitForTimeout(150)
-ok('ongedaan maken: briefje is terug', (await briefjesOpBord(p)) === 2)
+ok('ongedaan maken: briefje is terug', (await briefjesOpBord(p)) === 3)
 await p.locator('.bord-binnen .briefje-plek').first().locator('.briefje').click()
 await p.click('[data-laag="weg"]')
-await p.waitForTimeout(5400)
+// De 5 tellen lopen vanaf het moment dat "Ongedaan maken" verschijnt (na de val).
+await p.waitForTimeout(6000)
 s = await opslag(p)
 const graf = Object.values(Object.values(s.borden)[0].briefjes).filter((b) => b.weg)
 ok('na 5 tellen staat er een grafsteen (zonder tekst)', graf.length === 1 && !graf[0].v)
@@ -120,7 +166,7 @@ await writeFile(pad, JSON.stringify(backup))
 await p.setInputFiles('#import-bestand', pad)
 await p.waitForTimeout(300)
 await p.click('[data-tab="bord"]')
-ok('importeren voegt samen: 1 nieuw briefje erbij, niets kwijt', (await briefjesOpBord(p)) === 2 && (await p.locator('.bord-binnen').innerText()).includes('Uit de back-up'))
+ok('importeren voegt samen: 1 nieuw briefje erbij, niets kwijt', (await briefjesOpBord(p)) === 3 && (await p.locator('.bord-binnen').innerText()).includes('Uit de back-up'))
 await ctx.close()
 
 // 9. Kapotte opslag: geen crash, opnieuw beginnen, oude tekst bewaard
@@ -135,6 +181,25 @@ await p.goto(URL_APP)
 await p.waitForSelector('.bord-leeg')
 ok('kapotte opslag: app start met een vers bord', (await p.locator('.bord-leeg').count()) === 1)
 ok('kapotte opslag: oude tekst bewaard onder prikbord.v1.kapot', (await p.evaluate(() => localStorage.getItem('prikbord.v1.kapot'))) === '{kapot')
+await ctx.close()
+
+// 9b. Minder beweging en geluid uit: geen snippers, geen vlieger, geen AudioContext
+;({ ctx, p } = await nieuwePagina({ reducedMotion: 'reduce' }))
+await p.goto(URL_APP)
+await p.waitForSelector('.bord-leeg')
+await p.click('[data-tab="meer"]')
+await p.click('.schakelaar')
+await p.click('[data-tab="bord"]')
+await p.click('#blok')
+await p.waitForSelector('#vel-tekst')
+ok('minder beweging: geen snippers', (await p.locator('.snipper').count()) === 0)
+await p.fill('#vel-tekst', 'Rustig aan')
+await p.click('.prik')
+await p.waitForTimeout(80)
+ok('minder beweging: geen vliegend briefje', (await p.locator('.vlieger').count()) === 0)
+await p.waitForSelector('.laag:not([open])', { state: 'attached' })
+ok('minder beweging: het briefje hangt gewoon op het bord', (await briefjesOpBord(p)) === 1)
+ok('geluid uit: er wordt geen geluid aangemaakt', (await p.evaluate(() => window.__geluid)) === 0)
 await ctx.close()
 
 // 10. Service worker: registreert en de app opent offline

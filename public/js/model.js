@@ -76,7 +76,7 @@ export function beginStaat(now) {
     v: 1,
     bord: bord.id,
     borden: { [bord.id]: bord },
-    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, gezien: {}, concept: null },
+    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, laatsteCat: {}, gezien: {}, concept: null },
   }
 }
 

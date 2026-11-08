@@ -22,6 +22,7 @@ npm test             # node --test tests/*.test.mjs (zonder dependencies)
 npm run lint         # oxlint
 npm run rooktest     # Playwright-rooktest in Chromium
 npm run icons        # iconen uit scripts/prikbord-icon.svg
+npm run screenshots  # schermen en filmstrip op 390 px in docs/m1-stijl/
 ```
 
 Gegevens staan in `localStorage` onder `prikbord.v1` (die naam verandert nooit

@@ -9,7 +9,9 @@ import { importeer } from './merge.js'
 import { legNetjes, kolomBreedte } from './layout.js'
 import { uiterlijk } from './seed.js'
 import { laad, bewaar, bewaarStraks, bewaarNu } from './store.js'
-import { kiesStijl } from './stijl.js'
+import { zetRanden } from './randen.js'
+import { minderBeweging, scheurAf, vliegNaar, prikIn, wiebelBuren, vanBord, terugNaarBord, valWeg, vervaagLaag } from './beweging.js'
+import { rrrits, tok } from './geluid.js'
 
 export const APP_VERSION = '1' // ophogen bij elke release, samen met CACHE in sw.js
 
@@ -20,10 +22,12 @@ const CHANGELOG = [
   {
     v: 1,
     items: [
-      '📌 Het Prikbord is er! Scheur een briefje van het blokje, schrijf erop en prik het op het bord',
+      '📌 Het Prikbord is er! Scheur een briefje van het blokje (rrrits!), schrijf erop en prik het op het bord (tok!)',
+      '📝 Echte kladblokbriefjes met lijntjes, op warm kurk in een houten lijst',
       '🎨 Elke categorie heeft zijn eigen kleur papier: vakantie, uit eten, recepten, bucketlist en nog veel meer',
       '✍️ Half geschreven briefje? Dat bewaren we voor je, ook als je de app even wegklikt',
       '💾 Maak onder Meer een back-up, en zet hem terug zonder dat er iets verloren gaat',
+      '🔇 Liever stil? Zet de geluidjes uit onder Meer',
     ],
   },
 ]
@@ -55,7 +59,6 @@ const fmtMoment = (t) => {
   const datum = d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
   return `${datum} om ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
 }
-const minderBeweging = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // UI-toestand (niet opgeslagen).
 const ui = {
@@ -63,8 +66,9 @@ const ui = {
   persisted: null, // true, false of null (onbekend)
   vel: null, // { id, nieuw, tekst, cat } zolang het schrijfvel open is
   verborgen: new Set(), // briefjes die net weggehaald zijn (5 tellen ongedaan maken)
-  bezig: 0, // lopende handelingen (deelmenu, later slepen en uploads): niet herladen
-  nieuwGeprikt: null,
+  bezig: 0, // lopende handelingen (animaties, deelmenu, later slepen en uploads): niet herladen
+  open: null, // id van het briefje dat groot open ligt (op het bord verstopt)
+  landt: null, // id van het briefje dat nog naar zijn plek moet vliegen
 }
 
 let toastTimer = 0
@@ -104,7 +108,7 @@ function briefjeHtml(b) {
   const lid = lidVan(bd, b.door)
   const u = uiterlijk(b.id)
   return `
-    <div class="briefje-plek" data-id="${b.id}" style="--px:${u.punaiseX}%">
+    <div class="briefje-plek${ui.landt === b.id || ui.open === b.id ? ' verstopt' : ''}" data-id="${b.id}" style="--px:${u.punaiseX}%">
       <button type="button" class="briefje papier-${cat.kleur} rand-${u.rand}" data-action="open" data-id="${b.id}">
         <span class="vh">${esc(cat.naam)}: </span><span class="tekst">${esc(waarde(b.v, 'tekst', ''))}</span>
         <span class="briefje-voet" aria-hidden="true">${cat.emoji}</span>
@@ -149,17 +153,33 @@ function legBordNeer() {
     const p = plek[el.dataset.id]
     el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.draai}deg)`
     el.style.zIndex = p.z
+    // Voor de animaties (beweging.js): waar hij hangt.
+    Object.assign(el.dataset, { x: p.x, y: p.y, draai: p.draai })
   }
   // Pas na de eerste keer neerleggen geanimeerd verschuiven (het bord "schudt").
   requestAnimationFrame(() => binnen.classList.add('klaar'))
-  if (ui.nieuwGeprikt) {
-    const el = binnen.querySelector(`[data-id="${ui.nieuwGeprikt}"]`)
-    ui.nieuwGeprikt = null
-    if (el) {
-      el.classList.add('net-geprikt')
-      el.scrollIntoView({ block: 'nearest', behavior: minderBeweging() ? 'auto' : 'smooth' })
-    }
-  }
+}
+
+// Het briefje in beeld schuiven als het buiten beeld valt (zonder animatie,
+// want het gebeurt onder het schrijfvel).
+function zichtbaarMaken(plek) {
+  const r = plek.getBoundingClientRect()
+  const boven = $('.kop').offsetHeight + 16
+  const onder = innerHeight - $('.tabbar').offsetHeight - 16
+  if (r.top >= boven && r.bottom <= onder) return
+  scrollTo({ top: scrollY + r.top - (boven + onder) / 2 + r.height / 2, behavior: 'instant' })
+}
+
+// Welke categorie een nieuw briefje krijgt: de laatst gebruikte op dit bord,
+// of anders de eerste. Het blokje heeft die kleur al.
+function standaardCat() {
+  const cats = categorieen(bord())
+  return cats.find((c) => c.id === staat.apparaat.laatsteCat[staat.bord]) || cats[0]
+}
+function blokCat() {
+  const c = staat.apparaat.concept
+  if (c?.nieuw && c.bord === staat.bord && bord().cats[c.cat]) return catVan(bord(), c.cat)
+  return standaardCat()
 }
 
 let laatsteBreedte = innerWidth
@@ -265,6 +285,7 @@ function render() {
     else b.removeAttribute('aria-current')
   }
   blok.hidden = ui.tab !== 'bord'
+  $('.blok-vel', blok).className = `blok-vel papier-${blokCat()?.kleur || 'wit'}`
   if (ui.tab === 'bord') view.innerHTML = renderBord()
   if (ui.tab === 'kaart') view.innerHTML = renderKaart()
   if (ui.tab === 'gedaan') view.innerHTML = renderGedaan()
@@ -273,16 +294,58 @@ function render() {
 }
 
 // ---------- De laag: geopend briefje, schrijfvel, wat is er nieuw ----------
+// Eén <dialog> voor alles wat over het bord heen komt. De donkere achtergrond
+// is een eigen element (.laag-achter), zodat hij mee kan vervagen.
+
+const speel = (geluidje) => {
+  if (staat.apparaat.geluid) geluidje()
+}
+// Voor schermlezers: korte meldingen zonder toast.
+function meld(tekst) {
+  const el = $('#sr')
+  el.textContent = ''
+  setTimeout(() => (el.textContent = tekst), 30)
+}
 
 function openLaag(html, soort) {
-  laag.innerHTML = html
+  if (laag.open) {
+    // Wisselen binnen de laag (bijv. van groot briefje naar bewerken): de
+    // achtergrond laten staan, anders knippert hij.
+    for (const el of [...laag.children]) if (!el.classList.contains('laag-achter')) el.remove()
+    laag.insertAdjacentHTML('beforeend', html)
+  } else {
+    laag.innerHTML = `<div class="laag-achter" aria-hidden="true"></div>${html}`
+    laag.showModal()
+  }
   laag.dataset.soort = soort
-  if (!laag.open) laag.showModal()
   document.documentElement.classList.add('laag-open')
 }
 
-function sluitLaag() {
+// Tijdens een animatie: geen tikken op de laag en niet herladen.
+async function metRust(fn) {
+  ui.bezig++
+  laag.classList.add('bezig')
+  try {
+    return await fn()
+  } finally {
+    ui.bezig--
+    laag.classList.remove('bezig')
+  }
+}
+
+// Dicht zonder animatie (die is dan al gedaan).
+function sluitDirect() {
   if (laag.open) laag.close()
+}
+
+// Dicht met een passende beweging.
+function sluitLaag() {
+  if (!laag.open || laag.classList.contains('bezig')) return
+  if (laag.dataset.soort === 'open') return terughangen()
+  return metRust(async () => {
+    await vervaagLaag(laag)
+    sluitDirect()
+  })
 }
 
 laag.addEventListener('close', () => {
@@ -293,23 +356,39 @@ laag.addEventListener('close', () => {
     const bewaard = c && c.id === ui.vel.id && c.tekst.trim()
     ui.vel = null
     bewaarNu(staat, opslagFout)
+    render()
     if (bewaard) toast(c.nieuw ? '✍️ Je briefje ligt nog klaar op het blokje' : '✍️ Je wijziging is bewaard als concept')
   }
+  // Een geopend briefje dat nog verstopt was, komt terug op het bord.
+  if (ui.open) {
+    view.querySelector(`.briefje-plek[data-id="${ui.open}"]`)?.classList.remove('verstopt')
+    ui.open = null
+  }
   laag.dataset.soort = ''
+  laag.innerHTML = ''
 })
 
-// Tik naast het venster sluit het (zoals Tarapp).
+// Esc (en de terugknop op Android) sluit met dezelfde beweging.
+laag.addEventListener('cancel', (e) => {
+  e.preventDefault()
+  sluitLaag()
+})
+
+// Tik naast het briefje sluit het. Het schrijfvel niet: dan ben je te snel
+// iets kwijt als je net naast het papier tikt.
 laag.addEventListener('click', (e) => {
-  if (e.target === laag) sluitLaag()
+  if (e.target === laag || e.target.classList.contains('laag-achter') || e.target.matches('.groot, .nieuws')) sluitLaag()
 })
 
+// Tik op een briefje: het komt van het bord en opent groot.
 function openBriefje(id) {
   const bd = bord()
   const b = bd.briefjes[id]
-  if (!b || b.weg) return
+  if (!b || b.weg || laag.open) return
   const cat = catVan(bd, waarde(b.v, 'cat'))
   const lid = lidVan(bd, b.door)
   const u = uiterlijk(b.id)
+  const plek = view.querySelector(`.briefje-plek[data-id="${id}"]`)
   openLaag(
     `
     <div class="groot" data-id="${b.id}">
@@ -324,16 +403,35 @@ function openBriefje(id) {
       <div class="laag-knoppen">
         <button type="button" class="knop" data-laag="weg"><span aria-hidden="true">🗑️</span> Weghalen</button>
         <button type="button" class="knop" data-laag="bewerk"><span aria-hidden="true">✏️</span> Bewerken</button>
-        <button type="button" class="knop primair" data-laag="sluit">Terughangen</button>
+        <button type="button" class="knop primair" data-laag="sluit">Terughangen <span aria-hidden="true">📌</span></button>
       </div>
     </div>`,
     'open',
   )
+  ui.open = id
+  if (!plek || minderBeweging()) return
+  plek.classList.add('verstopt')
+  metRust(() => vanBord(plek, $('.groot-plek', laag), laag))
+}
+
+// "Terughangen": het briefje krimpt terug naar zijn plek, met een tok.
+function terughangen() {
+  const plek = ui.open && view.querySelector(`.briefje-plek[data-id="${ui.open}"]`)
+  const groot = $('.groot-plek', laag)
+  return metRust(async () => {
+    if (!plek || !groot || minderBeweging()) await vervaagLaag(laag)
+    else {
+      await terugNaarBord(groot, plek, laag, () => plek.classList.remove('verstopt'))
+      speel(tok)
+    }
+    sluitDirect()
+  })
 }
 
 // Het schrijfvel. Een nieuw briefje krijgt meteen zijn id, zodat het vel
 // dezelfde scheurrand heeft als straks het briefje op het bord.
-function openVel({ id, nieuw, tekst = '', cat }) {
+// `vanBlok`: net van het blokje gescheurd (met rrrits en animatie).
+function openVel({ id, nieuw, tekst = '', cat, vanBlok = false }) {
   const bd = bord()
   const cats = categorieen(bd)
   if (!cats.some((c) => c.id === cat)) cat = cats[0]?.id
@@ -369,13 +467,15 @@ function openVel({ id, nieuw, tekst = '', cat }) {
   )
   const ta = $('#vel-tekst')
   werkTellerBij()
-  // Op de iPhone komt het toetsenbord alleen omhoog bij focus vanuit een tik;
-  // na een herstart (concept) laten we het dus aan de gebruiker.
-  requestAnimationFrame(() => {
-    ta.focus({ preventScroll: true })
-    ta.setSelectionRange(ta.value.length, ta.value.length)
-  })
+  // Meteen focussen, nog binnen de tik: anders komt op de iPhone het
+  // toetsenbord niet omhoog. (Na een herstart met concept lukt dat niet.)
+  ta.focus({ preventScroll: true })
+  ta.setSelectionRange(ta.value.length, ta.value.length)
   laag.querySelector('.tabje[aria-checked="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  if (vanBlok) {
+    speel(rrrits)
+    if (!minderBeweging()) metRust(() => scheurAf($('.blok-vel', blok), $('.vel-plek', laag), laag, `papier-${kleur}`))
+  }
 }
 
 function werkTellerBij() {
@@ -391,8 +491,11 @@ function bewaarConcept() {
   bewaarStraks(staat, opslagFout)
 }
 
-function prik() {
-  if (!ui.vel) return
+// "Prikken!": opslaan, het bord eronder bijwerken (het briefje nog verstopt),
+// het vel laten krimpen en naar zijn plek laten vliegen, en dan de punaise
+// erin met een tok. De buren wiebelen mee.
+async function prik() {
+  if (!ui.vel || laag.classList.contains('bezig')) return
   const tekst = ui.vel.tekst.trim()
   if (!tekst) {
     const papier = $('#vel-papier')
@@ -409,18 +512,47 @@ function prik() {
   const nieuw = !bestaand || !!bestaand.weg
   // Weggehaald terwijl je het bewerkte? Dan wordt het een nieuw briefje.
   const echtId = bestaand?.weg ? maakId() : id
-  if (nieuw) nieuwBriefje(bd, { id: echtId, door: ikId(), tekst, cat, now })
-  else {
+  if (nieuw) {
+    nieuwBriefje(bd, { id: echtId, door: ikId(), tekst, cat, now })
+    staat.apparaat.laatsteCat[staat.bord] = cat
+  } else {
     zetVeld(bestaand, 'tekst', tekst, now)
     zetVeld(bestaand, 'cat', cat, now)
   }
   staat.apparaat.concept = null
   ui.vel = null
+  ui.open = null
   opslaan()
-  sluitLaag()
-  ui.nieuwGeprikt = echtId
+  meld(nieuw ? 'Briefje geprikt' : 'Briefje bijgewerkt')
+
+  ui.landt = echtId
   render()
-  toast(nieuw ? '📌 Geprikt!' : '📌 Bijgewerkt!')
+  ui.landt = null
+  const plek = view.querySelector(`.briefje-plek[data-id="${echtId}"]`)
+  if (!plek) return sluitDirect()
+  zichtbaarMaken(plek)
+
+  if (minderBeweging()) {
+    await metRust(async () => {
+      await vervaagLaag(laag, 160)
+      sluitDirect()
+    })
+    plek.classList.remove('verstopt')
+    plek.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220 })
+    speel(tok)
+    return
+  }
+  await metRust(async () => {
+    const vlieger = await vliegNaar($('#vel-papier'), plek, laag)
+    plek.classList.remove('verstopt')
+    vlieger.remove()
+    sluitDirect()
+  })
+  prikIn(plek, () => {
+    speel(tok)
+    navigator.vibrate?.(8)
+    wiebelBuren(plek)
+  })
 }
 
 function gooiWeg() {
@@ -428,7 +560,11 @@ function gooiWeg() {
   staat.apparaat.concept = null
   ui.vel = null
   opslaan()
-  sluitLaag()
+  metRust(async () => {
+    if (minderBeweging()) await vervaagLaag(laag)
+    else await valWeg($('.vel-plek', laag), laag)
+    sluitDirect()
+  })
 }
 
 laag.addEventListener('input', (e) => {
@@ -471,18 +607,27 @@ laag.addEventListener('click', (e) => {
 
 // ---------- Weghalen, met 5 tellen ongedaan maken (§6.2) ----------
 // Een grafsteen is definitief (en gaat straks naar de anderen). Daarom eerst
-// bevestigen en pas na 5 tellen echt weghalen. Gaat de app eerder naar de
-// achtergrond, dan gebeurt het meteen: je had het al bevestigd.
+// bevestigen en pas 5 tellen nadat "Ongedaan maken" verschijnt echt weghalen.
+// Gaat de app eerder naar de achtergrond, dan gebeurt het meteen: je had het
+// al bevestigd.
 
 let wegWacht = null
 
-function haalWeg(id) {
+async function haalWeg(id) {
   if (!id || !confirm('Dit briefje van het bord halen?')) return
   zetWegDoor()
-  sluitLaag()
   ui.verborgen.add(id)
-  wegWacht = { id, bord: staat.bord, timer: setTimeout(zetWegDoor, 5000) }
+  ui.open = null
+  wegWacht = { id, bord: staat.bord, timer: 0 }
   render()
+  const groot = $('.groot-plek', laag)
+  await metRust(async () => {
+    if (groot && !minderBeweging()) await valWeg(groot, laag)
+    else await vervaagLaag(laag)
+    sluitDirect()
+  })
+  if (!wegWacht || wegWacht.id !== id) return
+  wegWacht.timer = setTimeout(zetWegDoor, 5000)
   toast('🗑️ Briefje weggehaald', {
     actie: 'Ongedaan maken',
     ms: 5000,
@@ -491,8 +636,14 @@ function haalWeg(id) {
       clearTimeout(wegWacht.timer)
       wegWacht = null
       ui.verborgen.delete(id)
-      ui.nieuwGeprikt = id
       render()
+      // Terug op het bord, met punaise en al.
+      const plek = view.querySelector(`.briefje-plek[data-id="${id}"]`)
+      if (plek && !minderBeweging())
+        prikIn(plek, () => {
+          speel(tok)
+          wiebelBuren(plek)
+        })
     },
   })
 }
@@ -627,10 +778,12 @@ document.querySelector('.tabbar').addEventListener('click', (e) => {
   scrollTo(0, 0)
 })
 
+// Tik op het scheurblokje: een vel eraf (of het concept dat er nog lag).
 blok.addEventListener('click', () => {
+  if (laag.open) return
   const c = staat.apparaat.concept
-  if (c && c.bord === staat.bord && c.nieuw && c.id) return openVel(c)
-  openVel({ id: maakId(), nieuw: true, tekst: '', cat: categorieen(bord())[0]?.id })
+  if (c && c.bord === staat.bord && c.nieuw && c.id) return openVel({ ...c, vanBlok: true })
+  openVel({ id: maakId(), nieuw: true, tekst: '', cat: standaardCat()?.id, vanBlok: true })
 })
 
 // iOS: het toetsenbord verkleint alleen de zichtbare ruimte. Het schrijfvel
@@ -711,7 +864,7 @@ if ('serviceWorker' in navigator) {
 
 // ---------- Start ----------
 
-kiesStijl()
+zetRanden()
 if (opgestart.nieuw) {
   staat.apparaat.seenVersion = Number(APP_VERSION)
   opslaan()
