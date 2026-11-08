@@ -21,7 +21,7 @@ lees vooral A3 (eigen repo, andere paden).
 | Mijlpaal | Status | Werkbranch in `prikbord` |
 | --- | --- | --- |
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
-| M1 fundament en uiterlijk | klaar; **wacht op akkoord van Oscar om te deployen** (push naar `main`, Pages aanzetten) | `ccr-d21b9af2-gogh6f` |
+| M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
 | M2 het bord | nog niet begonnen | |
 | M3 samen | nog niet begonnen | |
 | M4 link, foto en kaart | nog niet begonnen | |
@@ -49,6 +49,7 @@ lees vooral A3 (eigen repo, andere paden).
 - **V3, volgorde in M1:** eerst het skelet plus 3 stijlvoorstellen (screenshots op 390 px), dan kiest Oscar, en pas daarna het scheur-en-prik-moment in de gekozen stijl. Allemaal in de M1-chat.
 - **V4, eigen repo:** ja → `oscardillewaard-ai/prikbord` (zie A3).
 - **Netwerk:** de cloudomgeving "Tezt" is aangemaakt.
+- **V6, deploy M1:** "Pages staat aan, deploy maar". `main` is fast-forward gezet naar `7370f1d`; workflow-run 1 (lint, tests, deploy). Live op `https://oscardillewaard-ai.github.io/prikbord/`. Deze cloudsessie kan `github.io` niet openen (de proxy weigert de host), dus de live site is niet door mij bekeken; dat doet Oscar met de testlijst.
 - **V5, stijl (M1):** "Bord a maar schoolschrift op de briefjes". Uitgewerkt als: van A het kurk, de houten lijst, de kop, de tabbalk, de knoppen en de bolle punaises (die horen bij het bord); van C het papier: kleuren, lijntjes, de gaatjes van de scheurlijn bovenaan, de licht gescheurde onderkant, Caveat vet in balpenblauw. Het scheurblokje is ook kladblokpapier (het is tenslotte een stapel briefjes). De punaises van C (speldenknoppen) en de lijst van C zijn niet gebruikt; dat is mijn invulling, Oscar kan het omgooien.
 
 ## Nagelezen in de documentatie (8 nov 2026, via curl)
