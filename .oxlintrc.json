@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["oxc", "import"],
+  "env": { "browser": true, "node": true, "es2024": true },
+  "ignorePatterns": ["public/vendor/**", "node_modules/**"]
+}

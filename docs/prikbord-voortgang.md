@@ -21,7 +21,7 @@ lees vooral A3 (eigen repo, andere paden).
 | Mijlpaal | Status | Werkbranch in `prikbord` |
 | --- | --- | --- |
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
-| M1 fundament en uiterlijk | nog niet begonnen | |
+| M1 fundament en uiterlijk | deel 1 klaar (skelet + 3 stijlvoorstellen), **wacht op stijlkeuze van Oscar** | `ccr-d21b9af2-gogh6f` |
 | M2 het bord | nog niet begonnen | |
 | M3 samen | nog niet begonnen | |
 | M4 link, foto en kaart | nog niet begonnen | |
@@ -58,6 +58,18 @@ lees vooral A3 (eigen repo, andere paden).
 
 ## Aannames die ik aanhoud (tenzij Oscar anders zegt)
 
+Nieuw in M1:
+
+- **Papierkleur als naam, niet als kleurcode.** Een categorie bewaart `zon`, `lucht`, `salie` … (10 kleuren, `PAPIER` in `validate.js`); de stijl bepaalt de tint. Zo blijft de inkt op elke kleur leesbaar (M5) en verandert een stijlwissel alle briefjes netjes mee. Gevolg voor M2: de categorie-editor kiest uit die 10 kleuren, niet uit een vrije kleurkiezer. Punaisekleuren werken net zo (`PUNAISE`, 8 kleuren).
+- **Wie ben jij?** In M1 heet het enige lid "Ik" (kleur rood). Een naam kiezen bij de eerste start hoort bij de leden (M3), of eerder als Oscar dat wil.
+- **Weghalen en de app wegklikken:** binnen de 5 tellen "Ongedaan maken" naar de achtergrond gaan, zet de grafsteen meteen. Je had het al bevestigd, en een briefje dat na het weghalen terugkomt, is verwarrender.
+- **Enkele tik opent meteen** (M1). Zodra dubbeltik = hartje komt (M2), wacht een enkele tik ~250 ms.
+- **Back-up exporteren en importeren zit al in M1** (regel 8 van §4.1 hoort bij het skelet). Importeren voegt per veld samen via `merge.js`, dat dus al af en getest is. "Met of zonder foto's" komt in M4.
+- **Toast als popover**, zodat een melding ook boven een open venster ligt. Popover werkt vanaf Safari 17; op oudere iPhones staat de melding gewoon onderin (niet getest op een echte oude iPhone).
+- **Minimale iOS-versie:** `color-mix()` (punaises, iOS 16.2+), `:has()` (focusrand, iOS 15.4+) en `<dialog>` (iOS 15.4+). Op ouder dan 16.2 missen alleen de schaduwtinten van de punaises. Uit mijn kennis, niet nagemeten op een toestel.
+
+Uit M0:
+
 - **Dubbeltik = hartje** (§5.5) betekent dat een enkele tik ongeveer 250 ms wacht voordat het briefje opent. Instagram doet dat ook. Uitproberen in M2.
 - **Trillen:** voor zover ik weet heeft Safari op de iPhone geen Vibration API (niet getest). Optillen trilt dan alleen op Android.
 - **Nominatim-User-Agent (M4):** `Prikbord/1.0 (+https://github.com/oscardillewaard-ai/prikbord)`, zonder e-mailadres.
@@ -73,6 +85,22 @@ lees vooral A3 (eigen repo, andere paden).
 
 ## Logboek
 
+### M1, deel 1 (8 nov 2026): skelet en 3 stijlvoorstellen
+
+- **Repo-fundament:** `package.json` (devDependencies oxlint, playwright 1.63.0 en sharp; scripts `lint`, `test`, `icons`, `serve`, `rooktest`, `screenshots`), `.oxlintrc.json` (negeert `public/vendor/**`), lint met `--deny-warnings`, workflow `.github/workflows/deploy-pages.yml` (push naar `main`: lint, tests, dan `public/` naar Pages). **Nog niet naar `main` gepusht**: dat is deployen, en wacht op akkoord (§8).
+- **Pure modules** (`public/js/`): `seed.js` (FNV-1a + mulberry32), `layout.js` (netjes rommelig), `model.js` (datamodel en tijdstempels), `validate.js` (schema en schoonmaken), `merge.js` (per veld samenvoegen en importeren). `model.js` staat niet in het bestandsvoorstel van §6.1; ik heb het toegevoegd zodat het datamodel puur en testbaar is. Ook nieuw: `stijl.js` (tijdelijk, de drie voorstellen) en `public/img/` (kurk, papierkorrel en hout als kleine SVG's met `feTurbulence`).
+- **App-skelet:** `index.html` (iOS-meta zoals Tarapp), manifest, `sw.js` (network-first, caches alleen met `prikbord-`), `store.js` (sleutel `prikbord.v1`, kapotte opslag → vers bord en de oude tekst onder `prikbord.v1.kapot`), `app.js`: bord, briefje openen, bewerken, weghalen met 5 tellen ongedaan maken, schrijfvel met concept, tabs (Kaart en Gedaan-doos als vrolijke "komt eraan"-briefjes), Meer (geluid, blijvende opslag, back-up, wat is er nieuw, nu bijwerken, versie), updates zoals `reloadWhenIdle`. Letters Caveat (500, 700) en Patrick Hand met OFL-licenties; é, ë, ï, ö, ü, € en de krullende aanhalingstekens nagemeten met fonttools (cmap van de woff2-bestanden). Icoon `scripts/prikbord-icon.svg` → `public/icons/` (palet-PNG, 512 px = 172 KB).
+- **Getest:**
+  - `npm test`: 37 tests groen. Daarin zitten seed (officiële FNV-1a-testvectoren), layout, validate, model, de sw-test (CACHE = APP_VERSION, SHELL compleet) en merge: 2000 geseede rondes commutatief, associatief en idempotent. Ter controle heb ik merge twee keer bewust kapotgemaakt (gelijk tijdstip en grafsteen); de tests vingen het allebei.
+  - `npm run rooktest` (Playwright/Chromium, 390 px): 27 van 27 geslaagd. Dat dekt briefje prikken en herladen, bewerken, concept na herladen, ongedaan maken, grafsteen na 5 tellen, geluid bewaren, export als download, importeren dat samenvoegt, kapotte opslag, service worker, offline openen, en "Nu bijwerken" dat de cache van Tarapp laat staan.
+  - `npm run lint`: schoon.
+- **Niet getest:** echte iPhone en Android (toetsenbord bij het schrijfvel, deelmenu bij de back-up, "Zet op beginscherm"), blijvende opslag (Chromium headless zegt "nee"), trillen.
+- **Stijlvoorstellen** in `docs/m1-stijlen/` (390 px, 2× scherp; `vergelijk-*.jpg` zet ze naast elkaar). Opnieuw maken: `npm run screenshots && node scripts/contactvel.mjs`. Proberen in de browser: `npm run serve`, dan `http://localhost:4173/?stijl=b`.
+  - **A · Klassiek kurk:** warm kurk, houten lijst, pastel blokpapier dat bovenaan echt is afgescheurd, Caveat, glimmende bolle punaises.
+  - **B · Licht & luchtig:** licht honingkurk zonder lijst, zachte moderne kleuren met rafelrandjes rondom, Patrick Hand, platte punaises.
+  - **C · Schoolschrift:** grof donker kurk in een stevige lijst, gelinieerd kladblokpapier met gaatjes van de scheurlijn, Caveat vet in balpenblauw, speldenknoppen.
+  - Onderdelen zijn te mengen (bijv. kurk van A met papier van C).
+
 ### M0 (8 nov 2026)
 
 - Gelezen: alle bestanden uit §3 van de spec (in Tezt).
@@ -82,20 +110,19 @@ lees vooral A3 (eigen repo, andere paden).
 - Oscar koos voor een eigen repo. De docs zijn overgezet naar `oscardillewaard-ai/prikbord`, met A3 erbij.
 - In Tezt: cache-fix voor Tarapp en Parkenjacht (`3cf0159`), getest in Chromium (vóór en na).
 
-## Startprompt voor M1
+## Startprompt om M1 af te maken (als deze chat stopt vóór de stijlkeuze)
 
 Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt":
 
 ```
-Prikbord, mijlpaal M1. Je werkt in de repo oscardillewaard-ai/prikbord.
-1. Merge eerst het werk uit M0 in je werkbranch:
-   git fetch origin ccr-dd7e09d5-7p41e5 && git merge origin/ccr-dd7e09d5-7p41e5
-2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (vooral A3:
-   eigen repo, andere paden) en docs/prikbord-voortgang.md (besluiten, aannames,
-   nagelezen docs).
-3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor de bestanden uit §3 van de
-   spec en voor Leaflet.
-4. Doe M1 zoals afgesproken (V3): eerst het skelet plus 3 stijlvoorstellen als
-   screenshots op 390 px, dan wachten op mijn keuze, daarna het scheur-en-prik-moment.
-   Werk aan het eind docs/prikbord-voortgang.md bij, met een startprompt voor M2.
+Prikbord, mijlpaal M1 deel 2. Je werkt in de repo oscardillewaard-ai/prikbord.
+1. Merge eerst het werk uit M1 deel 1 in je werkbranch:
+   git fetch origin ccr-d21b9af2-gogh6f && git merge origin/ccr-d21b9af2-gogh6f
+2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (vooral A3)
+   en docs/prikbord-voortgang.md (besluiten, aannames, logboek M1 deel 1).
+3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) als je iets uit §3 nodig hebt.
+4. Mijn stijlkeuze: <A, B of C, plus eventuele wensen>. Haal de andere twee stijlen
+   weg (stijl.js, styles.css, img/, fonts/, SHELL in sw.js) en bouw het
+   scheur-en-prik-moment (§5.3) in die stijl. Werk aan het eind
+   docs/prikbord-voortgang.md bij, met een startprompt voor M2.
 ```

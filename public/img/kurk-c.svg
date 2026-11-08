@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+  <!-- Kurk C (grof): donkerder, met dikke korrels zoals een oud schoolbord. -->
+  <filter id="brokken" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.32" numOctaves="2" seed="4" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 0.25  0 0 0 0 0.13  0 0 0 0 0.05  0 0 0 4.2 -2.05"/>
+  </filter>
+  <filter id="licht" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.36" numOctaves="2" seed="21" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 0.86  0 0 0 0 0.6  0 0 0 0 0.36  0 0 0 4.2 -2.15"/>
+  </filter>
+  <filter id="fijn" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="6" stitchTiles="stitch"/>
+    <feColorMatrix values="0 0 0 0 0.2  0 0 0 0 0.1  0 0 0 0 0.03  0 0 0 2.4 -1.1"/>
+  </filter>
+  <rect width="256" height="256" fill="#8e5b33"/>
+  <rect width="256" height="256" filter="url(#licht)"/>
+  <rect width="256" height="256" filter="url(#brokken)"/>
+  <rect width="256" height="256" filter="url(#fijn)"/>
+</svg>

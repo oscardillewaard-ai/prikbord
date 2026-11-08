@@ -1,0 +1,4 @@
+node_modules/
+# Tijdelijke screenshots van de rooktest (de stijlvoorstellen staan in docs/)
+test-results/
+.DS_Store
