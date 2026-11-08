@@ -238,7 +238,8 @@ export function vervaagLaag(laag, duur = 180) {
 
 // ---------- Nieuw in M2 ----------
 
-const KLEUREN = ['#ffd84d', '#ff8a7a', '#7cc7ff', '#9be3a8', '#c9a7ff', '#ff9ccb', '#ffb057', '#ffffff']
+// Fel, zodat het opvalt tussen het pastelpapier.
+const KLEUREN = ['#ff3b5c', '#ffbe0b', '#2f7bff', '#06c48a', '#8a3ffc', '#ff6a00', '#ff1f8f', '#ffffff']
 
 // Een hartje geven (dubbeltik): een groot hart klopt even op het briefje.
 export function hartPop(plek) {

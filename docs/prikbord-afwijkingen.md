@@ -71,3 +71,20 @@ worden hier niet herhaald.
   uit §3 staan in Tezt: haal die repo erbij om te lezen. Leaflet komt uit
   Tezt `public/parken/vendor/`.
 - **Status:** akkoord (Oscar, 8 nov 2026).
+
+## A4. Een categorie wordt nooit gewist, ook een ongebruikte niet
+
+- **Waar:** de categorie-editor onder Meer (`model.js`: `zetCat`, `nieuweCat`).
+- **Wat de spec zegt:** "Een gebruikte categorie wordt alleen verborgen, niet
+  gewist, zodat oude briefjes hun kleur houden (zoals Tarapp met
+  trainingstypes doet)." Tarapp wist een ongebruikt type wel echt.
+- **Waarom anders:** categorieën worden in M3 per veld samengevoegd met de
+  andere telefoons. Een gewiste categorie heeft geen grafsteen, dus de
+  volgende sync van een telefoon die hem nog heeft, zet hem gewoon terug. En
+  een briefje dat iemand anders net in die categorie prikte, zou zijn kleur
+  verliezen. Verbergen doet wat je wilt (weg uit de lijst, de tabjes en de
+  filterbalk) en is altijd terug te draaien. De editor toont verborgen
+  categorieën onderaan, met "Laten zien".
+- **Alternatief als Oscar echt wissen wil:** een grafsteen voor categorieën
+  (zoals bij briefjes), alleen toegestaan als er geen briefje meer in zit.
+- **Status:** voorgesteld (wacht op Oscar).

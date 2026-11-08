@@ -1043,12 +1043,15 @@ async function gooiInDoos(id, gedaan) {
     sluitDirect()
   })
   render()
-  if (minderBeweging()) speel(plop)
-  else {
-    stuiter(doel.querySelector('span'))
-    confetti(doel)
+  const melding = () => toast('📦 In de Gedaan-doos! 🎉', { actie: 'Ongedaan maken', ms: 5000, opActie: () => terugUitDoos(id) })
+  if (minderBeweging()) {
+    speel(plop)
+    return melding()
   }
-  toast('📦 In de Gedaan-doos! 🎉', { actie: 'Ongedaan maken', ms: 5000, opActie: () => terugUitDoos(id) })
+  stuiter(doel.querySelector('span'))
+  confetti(doel)
+  // De melding pas als het feestje bijna voorbij is (anders ligt hij over de confetti).
+  setTimeout(melding, 700)
 }
 
 // Aanpassen vanuit de doos (datum of "hoe was het").
@@ -1680,6 +1683,9 @@ view.addEventListener('change', (e) => {
 document.querySelector('.tabbar').addEventListener('click', (e) => {
   const knop = e.target.closest('[data-tab]')
   if (!knop) return
+  // Een enkele tik die nog wachtte (dubbeltik?), hoort bij het vorige scherm.
+  clearTimeout(ui.tik?.timer)
+  ui.tik = null
   ui.tab = knop.dataset.tab
   scrollTo(0, 0)
   render()

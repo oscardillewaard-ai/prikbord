@@ -23,6 +23,7 @@ npm run lint         # oxlint
 npm run rooktest     # Playwright-rooktest in Chromium
 npm run icons        # iconen uit scripts/prikbord-icon.svg
 npm run screenshots  # schermen en filmstrip op 390 px in docs/m1-stijl/
+npm run screenshots:m2  # het bord van M2 (filters, doos, vrij …) in docs/m2-bord/
 ```
 
 Gegevens staan in `localStorage` onder `prikbord.v1` (die naam verandert nooit

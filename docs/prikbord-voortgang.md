@@ -3,7 +3,7 @@
 Elke mijlpaal krijgt een nieuwe chat (afspraak met Oscar, 8 nov 2026). Dit
 bestand is het geheugen tussen die chats. Leidend blijft
 `docs/prikbord-spec.md`. Afwijkingen staan in `docs/prikbord-afwijkingen.md`;
-lees vooral A3 (eigen repo, andere paden).
+lees vooral A3 (eigen repo, andere paden) en A4 (categorieën nooit wissen).
 
 **Bij een nieuwe chat:**
 - Kies de cloudomgeving **"Tezt"**. Die laat naast de package registries ook
@@ -22,7 +22,7 @@ lees vooral A3 (eigen repo, andere paden).
 | --- | --- | --- |
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
 | M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
-| M2 het bord | nog niet begonnen | |
+| M2 het bord | klaar op de werkbranch (8 nov), **nog niet gedeployd** (wacht op akkoord van Oscar); testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
 | M3 samen | nog niet begonnen | |
 | M4 link, foto en kaart | nog niet begonnen | |
 | M5 afronden | nog niet begonnen | |
@@ -60,6 +60,24 @@ lees vooral A3 (eigen repo, andere paden).
 
 ## Aannames die ik aanhoud (tenzij Oscar anders zegt)
 
+Nieuw in M2 (het bord):
+
+- **Filters worden niet bewaard.** Bij elke start staat het bord weer op "Alles", zodat je nooit per ongeluk de helft van het bord mist. Sorteren en netjes/vrij worden wél per telefoon en per bord onthouden (`apparaat.sorteer`, `apparaat.weergave`). Eén filter geldt voor het bord én de Gedaan-doos.
+- **Combinatie van filters:** categorieën onderling = "of" (Recepten of Uit eten), samen met "💞 Iedereen zin" = "en". Verborgen categorieën staan alleen in de filterbalk als er nog briefjes van zijn.
+- **"💞 Iedereen zin"** = elk lid in `bord.leden` gaf een hartje. Met één lid (M2) is dat dus "ik gaf een hartje". In M3 tellen ook leden die het bord verlieten mee (leden worden nooit weggehaald); misschien wil Oscar dat anders.
+- **Dubbeltik zet een hartje alleen áán**, net als Instagram. Uitzetten kan met de hartje-knop op het geopende briefje. Een enkele tik wacht 250 ms; met het toetsenbord (Enter) opent een briefje meteen. In de Gedaan-doos opent een tik meteen (daar geen dubbeltik).
+- **Een nieuw of teruggehangen briefje dat niet door het filter komt**, zet het filter op "Alles", anders zie je het niet landen.
+- **Gedaan:** de datum mag niet in de toekomst liggen (`max` = vandaag). "Ongedaan maken" staat 5 tellen in de melding. Een foto bij "Gedaan!" komt in M4 (foto's horen daar); het formulier heeft er nog geen knop voor.
+- **"Terughangen" heeft twee betekenissen**, allebei letterlijk "terug op het bord": op een geopend briefje sluit het (zoals in M1), in de Gedaan-doos haalt het een briefje uit de doos. Daar heet sluiten "Sluiten".
+- **Trek een briefje 🎲** staat alleen op het bord, niet in de Gedaan-doos (iets trekken wat al gedaan is, heeft weinig zin). Het getrokken briefje heeft precies de twee knoppen uit de spec; voor bewerken of gedaan tik je het daarna gewoon aan.
+- **Vrij, maten:** het bord is 1000 eenheden breed, een briefje 230 (4 per rij). Bij zoom 1 is een briefje 170 px, net als netjes op een telefoon. Standaard zie je het hele bord in de breedte (op 390 px is een briefje dan ~86 px, de letter ~11 px: een overzicht, zoals een echt prikbord van een afstandje). Inzoomen tot 2,5×. Zoom en positie worden niet bewaard.
+- **Vrij, eerste lege plek:** in vakjes van 245 × 235 eenheden, rij voor rij, met de vaste maat van een vakje in plaats van de gemeten hoogte. Zo komt elke telefoon op dezelfde plek uit (de letter kan per toestel net anders vallen). Een vakje telt als bezet als een briefje er voor 70% overheen hangt.
+- **Vrij, vastzetten:** bij de eerste sleepbeweging krijgen álle briefjes zonder vrije plek hun huidige plek vast (`vrij` met tijdstempel). Anders kan een briefje verspringen als je er een ander bovenop legt. Gevolg voor M3: de eerste sleepbeweging op een bord verandert elk briefje één keer. Dat is één gebundelde PUT, daarna alleen nog het gesleepte briefje. Nagerekend (8 nov, met de echte modelfuncties): 300 briefjes van 80 tekens met vrije plek, stapel en twee hartjes = ~125 KB; 300 volle briefjes (500 tekens) = ~248 KB, net onder de 256 KB. M3 moet zo'n grote PUT dus in delen kunnen sturen (dat stond al in het plan uit M0, punt 8). Het neergezette briefje komt bovenop (`stapel` = hoogste + 1).
+- **Vrij, toetsenbord:** briefjes verplaatsen met het toetsenbord kan nog niet. Iets voor de toegankelijkheid in M5.
+- **Netjes of vrij** staat als schakelaar rechts in de kop (alleen op het bord). Sorteren is de eerste chip in de filterbalk (niet in vrij: daar ligt de plek vast). 🎲 staat vast rechts naast de chips.
+- **Categorie-editor:** de kleur kies je uit de 10 papierkleuren (zie M1), de emoji typ je of kies je uit 24 voorstellen. Nooit wissen, alleen verbergen (A4). Minstens één categorie moet zichtbaar blijven. Een briefje in een verborgen categorie houdt bij bewerken die categorie (het tabje staat er dan gewoon bij).
+- **Laatste back-up** staat onder Meer (`apparaat.laatsteBackup`, alleen op deze telefoon). Bij het deelmenu telt hij als gemaakt zodra het deelmenu "gelukt" zegt; of het bestand echt bewaard is, weet de app niet.
+
 Nieuw in M1, deel 2 (scheur-en-prik-moment):
 
 - **Standaardcategorie van een nieuw briefje** is de laatst gebruikte op dit bord (`apparaat.laatsteCat`, per telefoon), anders de eerste. Het blokje heeft al die papierkleur, zodat het vel dat je afscheurt dezelfde kleur heeft als het briefje.
@@ -96,6 +114,44 @@ Uit M0:
 - **`npm run lint` in Tezt is rood** door Tarapp (sinds `9d838b1`). Niet aangepakt. De deploy van Tezt draait geen lint.
 
 ## Logboek
+
+### M2 (8 nov 2026): het bord
+
+- **Gedaan, in volgorde van de spec (§8):**
+  - **Filters en sorteren (§5.6):** filterbalk onder de kop (blijft staan bij scrollen): sorteerchip, Alles, 💞 Iedereen zin en een chip per categorie in de papierkleur. Het bord wordt niet meer bij elke wijziging opnieuw opgebouwd: bestaande briefjes blijven staan en schuiven met een veertje naar hun nieuwe plek, wat niet door het filter komt vervaagt waar het hangt. Na het schuiven wordt ook de volgorde in de pagina gelijkgetrokken (tabvolgorde, schermlezers). Met een filter zonder resultaat: een vriendelijk "Niks gevonden" met "Alles laten zien".
+  - **Categorie-editor (§5.6):** Meer → Categorieën. Toevoegen, hernoemen, emoji (typen of kiezen), kleur, volgorde (▲▼) en verbergen/weer laten zien, met een voorbeeldbriefje dat meekleurt. Per veld met tijdstempel (`zetCat`, `nieuweCat`, `verschuifCat` in `model.js`).
+  - **Hartjes (§5.4, §5.5):** dubbeltik geeft een hartje met een kloppend hart op het briefje; kleine hartjes onderaan in de kleur van wie ze gaf (max. 5, dan "+n"); hartje-knop op het geopende briefje (`zetHart`, `hartjesVan`).
+  - **Gedaan-doos (§5.8):** "Gedaan! ✅" vraagt datum (standaard vandaag) en "Hoe was het?". Dan springt de punaise eruit (plop), valt het briefje naar de Gedaan-doos in de tabbalk, stuitert het doosje en volgt er confetti. De doos is een plakboek met plakband, per maand, nieuwste eerst, met teller ("6 dingen samen gedaan 🎉", met filter "1 van de 6 …"). Vanuit de doos: aanpassen, terughangen (de punaise prikt hem terug op het bord) en weghalen.
+  - **Trek een briefje 🎲 (§5.7):** binnen de filters; het bord schudt, één briefje wiebelt los en komt groot naar voren met "Nog eens" (altijd een ander, als er meer zijn) en "Sluiten".
+  - **Vrij (§5.2):** `js/vrij.js` doet de vingers: lang drukken (300 ms) tilt op (schaduw groeit, punaise los, kort trillen op Android), slepen, loslaten prikt opnieuw met tok en wiebelende buren; dicht bij de rand schuift het bord mee. Eén vinger over het kurk schuift, knijpen zoomt rond je vingers, plus knoppen +, − en ⤢ (ook met één hand te doen). Muis en touchpad: scrollen schuift, ctrl+scrollen zoomt. Filters dimmen in plaats van te verschuiven. Het bord heeft zijn eigen kurk met een houten rand, op een donkere muur.
+  - **Back-up:** "Laatste back-up" onder Meer; de rooktest controleert dat hartjes, gedaan, vrije plekken en categorieën heen en terug gaan.
+- **Nieuwe pure modules en functies:** `filter.js` (filter, sorteren, trekken, de doos per maand), in `layout.js` `legVrij`/`eersteLegePlek` en de camera (`pasCamera`, `zoomRond`), in `model.js` hartjes en categorieën, in `validate.js` `apparaat.sorteer` en `apparaat.laatsteBackup` (oude opslag zonder die velden blijft werken). Animaties erbij in `beweging.js` (`hartPop`, `schudLos`, `valInDoos`, `confetti`, `stuiter`, `popIn`), `geometrie` werkt nu ook op een geschaald bord. Geluid `plop()`.
+- **Release:** versie 2 (`APP_VERSION`, `CACHE` = `prikbord-v2`, `CHANGELOG`), `filter.js` en `vrij.js` in `SHELL`.
+- **Twee fouten die de tests vingen:**
+  - Na het schuiven over het bord negeerde de app 400 ms lang álle klikken in het venster, ook op de zoomknoppen. Nu alleen klikken op briefjes (dat is waarvoor het bedoeld was: na slepen mag een briefje niet opengaan).
+  - De confetti was er wel, maar te klein en te bleek tussen het pastelpapier, en de melding lag eroverheen. Nu fellere kleuren, hoger, en de melding komt pas na het feestje. Dat zag ik pas in een screenshot op echte snelheid.
+- **Getest:**
+  - `npm test`: 50 groen (was 37). Nieuw: `tests/filter.test.mjs` (filters, Iedereen zin, sorteren, trekken: 3000 keer, eerlijk verdeeld en nooit twee keer hetzelfde, doos per maand), hartjes en categorie-editor in `model.test.mjs`, vrije plekken en camera in `layout.test.mjs` (zelfde invoer = zelfde plek, ook in andere volgorde; een nieuw briefje laat oudere niet verspringen; zoomen rond een punt houdt dat punt op zijn plek), apparaatvelden in `validate.test.mjs`.
+  - `npm run lint`: schoon.
+  - `npm run rooktest`: 107 van 107 (was 41). Nieuw: filters (schuiven, uit beeld, meerdere tegelijk, niks gevonden), dubbeltik (hartje, opent niet), Iedereen zin, sorteren (linksboven én tabvolgorde, onthouden), hartje-knop aan en uit, Gedaan (datum vandaag, notitie, confetti, ongedaan maken, doos per maand met teller, filters in de doos, aanpassen, terughangen), Trek (binnen het filter, Nog eens = ander, Sluiten), categorie-editor (toevoegen, volgorde, hernoemen, verbergen, het schrijfvel, verborgen categorie houdt kleur en blijft gekozen bij bewerken), back-up heen en terug op een nieuwe telefoon, vrij met de muis (optillen, slepen precies zoals de muis ging, alles vastgezet, bovenop de stapel, tik opent wel, slepen niet, zoomknoppen, schuiven, ⤢) en met **echte aanraakpunten via CDP** (knijpen met twee vingers = ×3 bij ×3 uit elkaar, lang drukken en slepen met een vinger), filters dimmen in vrij zonder te verschuiven, nieuw briefje in vrij landt bovenaan, na herladen alles op zijn plek, en Gedaan met minder beweging (geen confetti).
+  - Twee bestaande controles aangepast, met reden: "Meer toont de versie" en "service worker cachet onder prikbord-v1" hadden het versienummer 1 vast in de test. Ze lezen nu `APP_VERSION` uit `app.js`, zodat het release-ritueel de rooktest niet meer breekt. Wat ze controleren, is niet veranderd.
+  - Ter controle twee keer bewust kapotgemaakt: zonder vastzetten bij het slepen gaan 2 controles rood; een dubbeltik die toch opent, laat de rooktest vastlopen (ook rood, alleen minder netjes).
+- **Screenshots en filmstrip** in `docs/m2-bord/` (390 px): bord, filter, meeste hartjes, dubbeltik, open, gedaan, doos, trek, vrij, vrij slepen, vrij zoom, Meer, categorieën, nieuwe categorie, plus `gedaan-filmstrip.jpg` (8× vertraagd). Opnieuw maken: `npm run screenshots:m2`. Het demobord staat nu in `scripts/demo.mjs` (gedeeld met `npm run screenshots`).
+- **Niet getest:** alles op een echte telefoon (zie de lijst hieronder), vooral de gebaren in vrij op de iPhone (Safari houdt zich voor zover ik weet aan `touch-action: none`, en `gesturestart` wordt tegengehouden; niet nagemeten), of een dubbeltik op de iPhone twee klikken geeft (zou moeten met `touch-action: manipulation`, niet nagemeten), trillen, hoe "plop" klinkt, en hoe vloeiend het schuiven is met 300 briefjes (M5).
+- **Niet gedeployd.** `main` staat nog op M1. Deployen = de werkbranch naar `main` zetten, na akkoord van Oscar.
+
+### Te controleren op de telefoon (na de deploy van M2)
+
+1. Na het bijwerken: verschijnt één keer "Er hangt iets nieuws op het prikbord!" met versie 2?
+2. Filters: tik twee categorieën aan. Schuiven de briefjes vloeiend naar hun plek? Blijft de filterbalk staan als je scrolt, en kun je hem opzij vegen?
+3. Dubbeltik op een briefje: klopt er een hart en komt er een klein hartje onderaan, zónder dat het briefje opengaat? Voelt een enkele tik (250 ms wachten) niet te traag?
+4. Open een briefje → "Gedaan!" → typ iets → "In de doos!": plop, valt hij naar de doos, confetti? Werkt het datumveld op de iPhone (het datumwieltje)?
+5. Gedaan-doos: per maand, met teller. "Terughangen": prikt de punaise hem terug op het bord?
+6. 🎲 Trek een briefje, een paar keer "Nog eens".
+7. Vrij: houd een briefje vast. Komt het los (op Android met een trilling) en kun je het slepen, ook tot aan de rand? Zoomt knijpen (en niet de hele pagina)? Schuift één vinger over het kurk? Verschijnt er geen menuutje of tekstselectie bij lang drukken?
+8. Vrij met één hand: + en − en ⤢ linksonder.
+9. Meer → Categorieën: voeg er een toe met een eigen emoji (emoji-toetsenbord), verander een kleur, schuif er een omhoog, verberg er een.
+10. Back-up maken: staat er daarna "Laatste back-up: …" onder Meer?
 
 ### M1, deel 2 (8 nov 2026): gekozen stijl en het scheur-en-prik-moment
 
@@ -152,31 +208,35 @@ Uit M0:
 - Oscar koos voor een eigen repo. De docs zijn overgezet naar `oscardillewaard-ai/prikbord`, met A3 erbij.
 - In Tezt: cache-fix voor Tarapp en Parkenjacht (`3cf0159`), getest in Chromium (vóór en na).
 
-## Voor M2: handig om te weten
+## Voor M3: handig om te weten
 
-- **Het bord herbouwen of verschuiven:** `render()` bouwt het bord opnieuw op (`innerHTML`). Voor het "schudden" bij filteren en sorteren (§5.2) moeten de bestaande elementen blijven staan en alleen verschuiven: `legBordNeer()` werkt op de elementen die er zijn, en zodra `.bord-binnen` de klasse `klaar` heeft, glijden ze met een `transition` naar hun nieuwe plek. Verbergen kan met een klasse in plaats van ze weg te halen.
-- **Dubbeltik = hartje:** een enkele tik opent nu meteen (`acties.open` → `openBriefje`). Voor dubbeltik ~250 ms wachten (zie de aannames uit M0). Hartjes staan in het model als `briefje.hart[lidId] = { w: true/false, t }`. Een functie `zetHart` bestaat nog niet; volg `zetVeld` (tijdstempel via `stempel`).
-- **Gedaan:** `zetVeld(b, 'gedaan', { datum, notitie }, now)`. `opHetBord()` laat gedane briefjes al weg. "Terughangen" uit de Gedaan-doos = `gedaan` op `null` (met tijdstempel).
-- **Vrij-modus:** de velden `vrij` (`{ x, y }` in bordcoördinaten, `BORD_BREEDTE` = 1000) en `stapel` bestaan al in het schema (`validate.js`). Telt `ui.bezig` op tijdens het slepen, zodat een update niet midden in een sleepbeweging herlaadt. De keuze netjes of vrij per bord staat al in het schema: `apparaat.weergave[bordId]`.
-- **Categorie-editor:** kleuren uit `PAPIER` (10 namen). Een gebruikte categorie alleen verbergen (`verborgen`), zoals `delete-type` in Tarapp.
-- **Het geopende briefje** heeft nu de knoppen Weghalen, Bewerken en Terughangen (`.laag-knoppen` is een raster van 2 kolommen). Hartje en "Gedaan! ✅" komen erbij.
-- **Animaties hergebruiken:** `prikIn` en `wiebelBuren` (bijv. bij "Terughangen" uit de Gedaan-doos), `vanBord` (bijv. voor "Trek een briefje": het briefje komt los en groot naar het midden), `valWeg`, en het patroon `metRust(async () => …)` dat tikken blokkeert en herladen uitstelt tijdens een animatie.
-- **Back-up:** exporteren en samenvoegend importeren werken al (M1). "Met of zonder foto's" komt in M4.
+- **Het bord bijwerken na een sync:** gewoon `render()` aanroepen. Het bord is keyed (`vulBak` in `app.js`): bestaande briefjes blijven staan en schuiven naar hun nieuwe plek, nieuwe komen erbij, weggehaalde verdwijnen. Een briefje dat een ander verplaatste in vrij glijdt dus vanzelf naar zijn nieuwe plek. Een briefje dat groot openligt (`ui.open`) of net landt (`ui.landt`) blijft verstopt. Tijdens een sleepbeweging (`.sleept`) laat `legVrijNeer` het gesleepte briefje met rust.
+- **Wat er per veld verandert (voor "alleen gewijzigde briefjes versturen"):** hartjes (`zetHart`), `gedaan`, `vrij` en `stapel` (bij slepen: álle briefjes zonder plek krijgen er één, zie de aannames), categorieën (`zetCat`, `nieuweCat`, `verschuifCat` nummert alle `volg` opnieuw). Alles gaat via `stempel()`, dus de tijdstempels kloppen al.
+- **Opslaan gebeurt nu op één plek per handeling** (`opslaan()`); daar kan de "gewijzigd"-vlag en het bundelen (1,5 s) van de sync bij.
+- **Leden:** er is nog één lid ("Ik", rood). `hartjesHtml` en `hartKnopHtml` tonen al de kleur van elk lid, en "💞 Iedereen zin" telt alle leden in `bord.leden`. De naam kiezen en "Dit ben ik al" komen in M3.
+- **Meerdere borden:** `ui.filter`, `ui.camera` en `ui.getrokken` horen bij het actieve bord; zet ze terug bij een bordwissel (`ui.filter = ALLES`). `apparaat.weergave` en `apparaat.sorteer` zijn al per bord.
+- **"Nieuw"-stickertje en "3 nieuwe briefjes":** `apparaat.gezien` (per bord, een tijdstip) staat al in het schema maar wordt nog niet gebruikt.
+- **Niet herladen tijdens iets:** `rustig()` kijkt nu ook naar `vrijApi.bezig()` (schuiven, knijpen, slepen). Een melding van de sync ("📌 Tara prikte …") kan met `toast()`; die ligt als popover ook boven een open venster.
+- **KV-writes en de 256 KB (§6.3):** de eerste sleepbeweging op een bord verandert elk briefje één keer. Met 300 volle briefjes is dat ~248 KB (nagerekend), dus versturen in delen onder de 256 KB is nodig, niet alleen bij de eerste koppeling.
+- **Rooktest:** `m2Staat()` in `scripts/rooktest.mjs` bouwt een bord in Node met de pure modules en zet het via `addInitScript` in de browser; handig voor de twee-contexten-test van M3. Aanraakgebaren kunnen via `ctx.newCDPSession(p)` en `Input.dispatchTouchEvent` (zie blok 17).
 
-## Startprompt voor M2
+## Startprompt voor M3
 
 Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt":
 
 ```
-Prikbord, mijlpaal M2 (het bord). Je werkt in de repo oscardillewaard-ai/prikbord.
-1. Merge eerst het werk uit M1 in je werkbranch (als het nog niet op main staat):
-   git fetch origin ccr-d21b9af2-gogh6f && git merge origin/ccr-d21b9af2-gogh6f
+Prikbord, mijlpaal M3 (samen). Je werkt in de repo oscardillewaard-ai/prikbord.
+1. Merge eerst het werk uit M2 in je werkbranch (verandert niets als het al op main staat):
+   git fetch origin ccr-eb14dc7d-18clpv && git merge origin/ccr-eb14dc7d-18clpv
 2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (vooral A3:
-   eigen repo, andere paden) en docs/prikbord-voortgang.md (besluiten, aannames,
-   logboek M1 en "Voor M2: handig om te weten").
-3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) als je iets uit §3 nodig hebt.
-4. Doe M2 (§8 van de spec): filters, sorteren, categorie-editor, hartjes (met één
-   lokaal lid), Gedaan-doos, Trek een briefje, vrij-modus met slepen en zoomen,
-   back-up. Draai voor elke commit npm test, npm run lint en npm run rooktest.
-   Werk aan het eind docs/prikbord-voortgang.md bij, met een startprompt voor M3.
+   eigen repo, andere paden; en A4) en docs/prikbord-voortgang.md (besluiten, aannames,
+   logboek M1 en M2 en "Voor M3: handig om te weten").
+3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor proxy/parken-sync-worker.js
+   en de sync-lus in public/parken/app.js (§3, §6.3).
+4. Doe M3 (§8 van de spec): worker, meerdere borden, koppel-link, leden (wie ben jij,
+   "Dit ben ik al"), samenvoegen per veld, peilen, statusbolletje en de convergentietest.
+   Schrijf voor Oscar de stappen om de worker neer te zetten. Draai voor elke commit
+   npm test, npm run lint en npm run rooktest. Werk aan het eind
+   docs/prikbord-voortgang.md bij, met een startprompt voor M4.
+   ⏸ Daarna wacht je op akkoord: Oscar test het met twee telefoons.
 ```

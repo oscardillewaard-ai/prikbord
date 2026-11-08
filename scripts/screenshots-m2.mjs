@@ -15,7 +15,7 @@ const UIT = process.argv[2] || fileURLToPath(new URL('../docs/m2-bord/', import.
 const POORT = 4318
 const TRAAG = 8
 const fouten = []
-const jpg = { type: 'jpeg', quality: 85 }
+const jpg = { type: 'jpeg', quality: 68 }
 
 async function pagina(browser, staat, { traag = 1, schaal = 2 } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: schaal, locale: 'nl-NL', timezoneId: 'Europe/Amsterdam', serviceWorkers: 'block' })
@@ -29,6 +29,9 @@ async function pagina(browser, staat, { traag = 1, schaal = 2 } = {}) {
       let zaad = 7
       Math.random = () => ((zaad = (zaad * 16807) % 2147483647) - 1) / 2147483646
       if (f > 1) {
+        // Slow motion: animaties én wachttijden f keer langzamer.
+        const echtTimeout = window.setTimeout
+        window.setTimeout = (fn, ms, ...rest) => echtTimeout(fn, (ms || 0) * f, ...rest)
         const echt = Element.prototype.animate
         Element.prototype.animate = function (kf, o) {
           const opt = typeof o === 'number' ? { duration: o } : { ...o }
@@ -162,7 +165,7 @@ const beelden = []
   await p.click('#gedaan-form [type="submit"]')
   const na = (ms) => p.waitForTimeout(Math.max(0, ms * TRAAG - (Date.now() - t1)))
   for (const [ms, label] of [
-    [180, '2 · plop! de punaise springt eruit'],
+    [180, '2 · plop! punaise eruit'],
     [420, '3 · het briefje valt'],
     [700, '4 · in de doos'],
   ]) {
@@ -171,7 +174,7 @@ const beelden = []
   }
   await dicht(p)
   const t2 = Date.now()
-  await p.waitForTimeout(Math.max(0, 380 * TRAAG - (Date.now() - t2)))
+  await p.waitForTimeout(Math.max(0, 520 * TRAAG - (Date.now() - t2)))
   await foto('5 · confetti! 🎊')
   await ctx.close()
 }
