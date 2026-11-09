@@ -87,4 +87,29 @@ worden hier niet herhaald.
   categorieën onderaan, met "Laten zien".
 - **Alternatief als Oscar echt wissen wil:** een grafsteen voor categorieën
   (zoals bij briefjes), alleen toegestaan als er geen briefje meer in zit.
+- **Status:** akkoord (Oscar, 9 nov 2026: "A4 akkoord").
+
+## A5. De worker wordt gebouwd uit de kern plus validate.js en merge.js
+
+- **Waar:** `proxy/prikbord-sync-worker.js` (het bestand dat Oscar in
+  Cloudflare plakt), gemaakt door `npm run worker` (`scripts/bouw-worker.mjs`)
+  uit `proxy/prikbord-worker-kern.js`, `public/js/validate.js` en
+  `public/js/merge.js`.
+- **Hoe Parkenjacht het doet:** de worker is één met de hand geschreven
+  bestand, met een eigen, kleine `clean` en `merge`.
+- **Waarom anders:** bij het Prikbord moeten app en worker precies hetzelfde
+  controleren en samenvoegen: per veld, met dezelfde vaste keuze bij een
+  gelijk tijdstip. Twee kopieën lopen vroeg of laat uit elkaar, en dan
+  komen de telefoons niet meer op dezelfde stand uit. Zie de
+  convergentietest: met een andere keuze bij een gelijk tijdstip gaat hij
+  rood. Nu is er één bron, en het bouwscript plakt de echte modules in de
+  worker (zonder `export`).
+- **Wat blijft zoals de spec vraagt:** de app zelf heeft geen buildstap
+  (§4.1, regel 1). Het gebouwde bestand staat in de repo, dus Oscar hoeft
+  niets te draaien: hij kopieert het bestand. `tests/worker.test.mjs` faalt
+  als het niet meer bij de bronnen past ("draai npm run worker"), en test
+  precies het bestand dat in Cloudflare komt.
+- **Alternatief:** de worker met de hand bijhouden, met een test die op
+  willekeurige borden controleert dat worker en app hetzelfde samenvoegen.
+  Dat werkt ook, maar dan pas je alles twee keer aan.
 - **Status:** voorgesteld (wacht op Oscar).
