@@ -17,12 +17,22 @@ import { minderBeweging, scheurAf, vliegNaar, prikIn, wiebelBuren, vanBord, teru
 import { maakVrij } from './vrij.js'
 import { rrrits, tok, plop } from './geluid.js'
 
-export const APP_VERSION = '2' // ophogen bij elke release, samen met CACHE in sw.js
+export const APP_VERSION = '3' // ophogen bij elke release, samen met CACHE in sw.js
 
 // ---------- Wat is er nieuw ----------
 // Nieuwste bovenaan. Bij een release: APP_VERSION ophogen, CACHE in sw.js
 // ophogen en hier een regel toevoegen.
 const CHANGELOG = [
+  {
+    v: 3,
+    items: [
+      '🤝 Samen prikken! Deel een bord met een koppel-link, dan zien jullie meteen elkaars briefjes, hartjes en verhuizingen',
+      '📋 Meerdere borden: eentje voor thuis, eentje voor de groepsreis … Tik op de naam bovenin om te wisselen',
+      '🙋 Wie ben jij? Kies je naam en de kleur van je punaises. Nieuwe telefoon? Kies "Dit ben ik al", dan tellen je hartjes niet dubbel',
+      '📌 Prikt een ander iets, dan zie je het meteen, met een nieuw-stickertje op briefjes die je nog niet zag',
+      '🟢 Het bolletje bovenin vertelt of alles bij de anderen is aangekomen. Even geen internet? Je wijzigingen gaan mee zodra het weer lukt',
+    ],
+  },
   {
     v: 2,
     items: [

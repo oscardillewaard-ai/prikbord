@@ -5,6 +5,8 @@
 // twee telefoons met dezelfde gegevens ook exact dezelfde JSON hebben.
 
 export const ID_RE = /^[A-Za-z0-9_-]{4,40}$/
+// Groepscode van een gedeeld bord (M3): lang en willekeurig, het enige wachtwoord.
+export const GROEP_RE = /^[A-Za-z0-9_-]{16,64}$/
 export const MAX_TEKST = 500
 export const MAX_NOTITIE = 1000
 export const BORD_BREEDTE = 1000 // vrije plek in bordcoördinaten (M2)
@@ -75,11 +77,11 @@ export const CAT_SCHOON = {
   volg: (w) => (isGetal(w) ? w : undefined),
   verborgen: (w) => (typeof w === 'boolean' ? w : undefined),
 }
-const LID_SCHOON = {
+export const LID_SCHOON = {
   naam: tekstTot(40, 1),
   kleur: (w) => (PUNAISE.includes(w) ? w : undefined),
 }
-const INFO_SCHOON = {
+export const INFO_SCHOON = {
   naam: tekstTot(60, 1),
   emoji: CAT_SCHOON.emoji,
 }
@@ -170,10 +172,25 @@ function schoonApparaat(raw, borden) {
     weergave: perBord(a.weergave, (v) => v === 'netjes' || v === 'vrij'),
     sorteer: perBord(a.sorteer, (v) => v === 'nieuw' || v === 'hartjes'),
     laatsteCat: perBord(a.laatsteCat, (v) => typeof v === 'string' && ID_RE.test(v)),
-    gezien: perBord(a.gezien, isT),
+    // Briefjes van anderen die deze telefoon nog niet zag (het nieuw-stickertje, M3).
+    nieuw: perBordLijst(a.nieuw, borden),
     concept,
     laatsteBackup: isT(a.laatsteBackup) ? a.laatsteBackup : 0,
+    // De naam die je bij de eerste start koos ("Wie ben jij?"); '' = nog niet gekozen.
+    naam: typeof a.naam === 'string' ? a.naam.trim().slice(0, 40) : '',
   }
+}
+
+// Per bord een lijstje briefje-id's (zonder dubbele, hooguit 500).
+function perBordLijst(m, borden) {
+  const uit = {}
+  if (!isObj(m)) return uit
+  for (const id of Object.keys(m).sort()) {
+    if (!borden[id] || !Array.isArray(m[id])) continue
+    const ids = [...new Set(m[id].filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 500)
+    if (ids.length) uit[id] = ids
+  }
+  return uit
 }
 
 // De hele opgeslagen stand. Geeft null terug als er niets bruikbaars in zit;
@@ -193,4 +210,30 @@ export function schoonStaat(raw) {
     borden,
     apparaat: schoonApparaat(raw.apparaat, borden),
   }
+}
+
+// ---------- Samen (M3) ----------
+// De koppelingen staan onder een eigen sleutel (prikbord.sync), buiten de
+// back-up (§4.1, regel 11): de groepscode is het wachtwoord van een bord.
+
+// Adres van een sync-server: https, of http op deze computer (om te testen).
+export function schoonAdres(w) {
+  const url = String(w ?? '').trim().replace(/\/+$/, '')
+  if (url.length > 300) return ''
+  return /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(url) ? url : ''
+}
+
+// { url, borden: { bordId: { u, r } } }: u = adres van de sync-server, r = groepscode.
+export function schoonSync(raw) {
+  const s = isObj(raw) ? raw : {}
+  const borden = {}
+  if (isObj(s.borden)) {
+    for (const id of Object.keys(s.borden).sort()) {
+      const k = s.borden[id]
+      if (!ID_RE.test(id) || !isObj(k)) continue
+      const u = schoonAdres(k.u)
+      if (u && typeof k.r === 'string' && GROEP_RE.test(k.r)) borden[id] = { u, r: k.r }
+    }
+  }
+  return { url: schoonAdres(s.url), borden }
 }

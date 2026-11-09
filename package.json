@@ -11,7 +11,9 @@
     "serve": "node scripts/serve.mjs",
     "rooktest": "node scripts/rooktest.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "screenshots:m2": "node scripts/screenshots-m2.mjs"
+    "screenshots:m2": "node scripts/screenshots-m2.mjs",
+    "worker": "node scripts/bouw-worker.mjs",
+    "nep-worker": "node scripts/nep-worker.mjs"
   },
   "devDependencies": {
     "oxlint": "1.92.0",

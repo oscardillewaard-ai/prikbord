@@ -12,7 +12,7 @@
 //   of na verwijderen: { id, door, gemaakt, weg }
 // Elk veld (naam, tekst, hartje …) is een register { w: waarde, t: tijdstip }.
 
-import { PUNAISE, VELDEN, PAPIER, CAT_SCHOON } from './validate.js'
+import { PUNAISE, VELDEN, PAPIER, CAT_SCHOON, LID_SCHOON, INFO_SCHOON } from './validate.js'
 
 // Lange, willekeurige id (base64url). Wordt nooit hergebruikt.
 export function maakId(bytes = 12) {
@@ -68,16 +68,56 @@ export function voegLidToe(bord, { id = maakId(), naam, kleur, now }) {
   return id
 }
 
+// Zo heet je op een bord zolang je nog geen naam koos.
+export const GEEN_NAAM = 'Ik'
+
 // De eerste stand op een nieuwe telefoon: één bord "Thuis" met jou erop.
-export function beginStaat(now) {
+export function beginStaat(now, naam = '') {
   const bord = nieuwBord({ naam: 'Thuis', emoji: '🏠', sjabloon: 'thuis', now })
-  const ik = voegLidToe(bord, { naam: 'Ik', kleur: 'rood', now })
+  const ik = voegLidToe(bord, { naam: naam || GEEN_NAAM, kleur: 'rood', now })
   return {
     v: 1,
     bord: bord.id,
     borden: { [bord.id]: bord },
-    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, sorteer: {}, laatsteCat: {}, gezien: {}, concept: null, laatsteBackup: 0 },
+    apparaat: { geluid: true, seenVersion: 0, ik: { [bord.id]: ik }, weergave: {}, sorteer: {}, laatsteCat: {}, nieuw: {}, concept: null, laatsteBackup: 0, naam },
   }
+}
+
+// ---------- Leden en bordinstellingen (M3) ----------
+// Net als briefjes en categorieën per veld met een eigen tijdstempel, zodat
+// twee telefoons tegelijk iets kunnen aanpassen.
+
+function zetRegister(obj, veld, schoon, w, now) {
+  if (!schoon || !obj) return false
+  const nieuw = schoon(typeof w === 'string' ? w.trim() : w)
+  if (nieuw === undefined) return false
+  const oud = obj[veld]
+  if (oud && JSON.stringify(oud.w) === JSON.stringify(nieuw)) return false
+  obj[veld] = reg(nieuw, stempel(oud, now))
+  return true
+}
+const opVolgorde = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]))
+
+// Naam of kleur van een lid. Geeft false terug als de waarde niet klopt of niet verandert.
+export function zetLid(bord, lidId, veld, w, now) {
+  const l = bord.leden[lidId]
+  if (!zetRegister(l, veld, LID_SCHOON[veld], w, now)) return false
+  bord.leden[lidId] = opVolgorde(l)
+  return true
+}
+
+// Naam of emoji van het bord.
+export function zetInfo(bord, veld, w, now) {
+  if (!zetRegister(bord.info, veld, INFO_SCHOON[veld], w, now)) return false
+  bord.info = opVolgorde(bord.info)
+  return true
+}
+
+// Alle leden, op naam. Leden worden nooit weggehaald (ook niet als iemand het bord verlaat).
+export function ledenVan(bord) {
+  return Object.keys(bord.leden)
+    .map((id) => lidVan(bord, id))
+    .sort((a, b) => a.naam.localeCompare(b.naam, 'nl') || (a.id < b.id ? -1 : 1))
 }
 
 export function nieuwBriefje(bord, { id = maakId(), door, tekst, cat, now }) {
