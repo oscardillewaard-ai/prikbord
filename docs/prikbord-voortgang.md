@@ -22,7 +22,7 @@ lees vooral A3 (eigen repo, andere paden) en A4 (categorieën nooit wissen).
 | --- | --- | --- |
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
 | M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
-| M2 het bord | klaar op de werkbranch (8 nov), **nog niet gedeployd** (wacht op akkoord van Oscar); testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
+| M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
 | M3 samen | nog niet begonnen | |
 | M4 link, foto en kaart | nog niet begonnen | |
 | M5 afronden | nog niet begonnen | |
@@ -51,6 +51,11 @@ lees vooral A3 (eigen repo, andere paden) en A4 (categorieën nooit wissen).
 - **Netwerk:** de cloudomgeving "Tezt" is aangemaakt.
 - **V6, deploy M1:** "Pages staat aan, deploy maar". `main` is fast-forward gezet naar `7370f1d`; workflow-run 1 (lint, tests, deploy). Live op `https://oscardillewaard-ai.github.io/prikbord/`. Deze cloudsessie kan `github.io` niet openen (de proxy weigert de host), dus de live site is niet door mij bekeken; dat doet Oscar met de testlijst.
 - **V5, stijl (M1):** "Bord a maar schoolschrift op de briefjes". Uitgewerkt als: van A het kurk, de houten lijst, de kop, de tabbalk, de knoppen en de bolle punaises (die horen bij het bord); van C het papier: kleuren, lijntjes, de gaatjes van de scheurlijn bovenaan, de licht gescheurde onderkant, Caveat vet in balpenblauw. Het scheurblokje is ook kladblokpapier (het is tenslotte een stapel briefjes). De punaises van C (speldenknoppen) en de lijst van C zijn niet gebruikt; dat is mijn invulling, Oscar kan het omgooien.
+
+9 nov 2026:
+
+- **V7, deploy M2:** "Deploy en geef prompt". `main` is fast-forward gezet naar `99d6957` (M2 deel 2); workflow-run 3 (lint, tests, deploy). Live op `https://oscardillewaard-ai.github.io/prikbord/` (versie 2). Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M2.
+- **A4 (categorieën nooit wissen):** nog geen reactie van Oscar, dus status blijft "voorgesteld".
 
 ## Nagelezen in de documentatie (8 nov 2026, via curl)
 
@@ -138,7 +143,7 @@ Uit M0:
   - Ter controle twee keer bewust kapotgemaakt: zonder vastzetten bij het slepen gaan 2 controles rood; een dubbeltik die toch opent, laat de rooktest vastlopen (ook rood, alleen minder netjes).
 - **Screenshots en filmstrip** in `docs/m2-bord/` (390 px): bord, filter, meeste hartjes, dubbeltik, open, gedaan, doos, trek, vrij, vrij slepen, vrij zoom, Meer, categorieën, nieuwe categorie, plus `gedaan-filmstrip.jpg` (8× vertraagd). Opnieuw maken: `npm run screenshots:m2`. Het demobord staat nu in `scripts/demo.mjs` (gedeeld met `npm run screenshots`).
 - **Niet getest:** alles op een echte telefoon (zie de lijst hieronder), vooral de gebaren in vrij op de iPhone (Safari houdt zich voor zover ik weet aan `touch-action: none`, en `gesturestart` wordt tegengehouden; niet nagemeten), of een dubbeltik op de iPhone twee klikken geeft (zou moeten met `touch-action: manipulation`, niet nagemeten), trillen, hoe "plop" klinkt, en hoe vloeiend het schuiven is met 300 briefjes (M5).
-- **Niet gedeployd.** `main` staat nog op M1. Deployen = de werkbranch naar `main` zetten, na akkoord van Oscar.
+- **Gedeployd op 9 nov** (zie V7 bij de besluiten).
 
 ### Te controleren op de telefoon (na de deploy van M2)
 
