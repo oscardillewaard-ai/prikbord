@@ -25,8 +25,8 @@ per worker-exemplaar; voorgesteld).
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
 | M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
 | M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
-| M3 samen | klaar, nog niet gedeployd. Oscar zet de worker later neer en test dan met twee telefoons; M4 mag al beginnen (besluit 9 nov) | `ccr-fc257cf9-70gzqa` |
-| M4 link, foto en kaart | klaar, nog niet gedeployd; wacht op akkoord van Oscar. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
+| M3 samen | klaar en gedeployd (9 nov, samen met M4), staat op `main`. De worker staat nog niet; Oscar zet hem neer en test dan met twee telefoons | `ccr-fc257cf9-70gzqa` |
+| M4 link, foto en kaart | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
 | M5 afronden | nog niet begonnen | |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
@@ -60,6 +60,7 @@ per worker-exemplaar; voorgesteld).
 - **A4 (categorieën nooit wissen):** "A4 akkoord" (bij de start van M3).
 - **A5 (de worker bouwen uit de kern plus validate.js en merge.js):** "Akkoord met a5" (na M3).
 - **Verder zonder worker:** "Kan je verder gaan zonder de worker? Dan doe ik dat als ik thuis ben." M4 mag dus beginnen voordat de worker staat en voordat M3 met twee telefoons getest is. Testen gaat tot die tijd met de nep-worker (`npm run nep-worker`, of `startWorker()` in de rooktest). Gevolg: vindt Oscar bij de test met twee telefoons iets in M3, dan lossen we dat op in een latere chat.
+- **V8, deploy M4:** "deploy M4" (na "Geef prompt"). `main` is fast-forward gezet van `9ba15fc` (M2) naar `39c5582` (M4); workflow-run 5 (lint, tests, deploy). Daarmee staat ook **M3** live (M4 bouwt erop voort). Zonder worker is dat onschuldig: borden blijven op de telefoon, en "Samen prikken" vraagt om het adres van een sync-server. Wel ziet Oscar na het bijwerken één keer "Wat is er nieuw" met versie 3 én 4, inclusief "Samen prikken!", wat pas werkt als de worker staat. Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M4.
 
 ## Nagelezen in de documentatie (via curl)
 
