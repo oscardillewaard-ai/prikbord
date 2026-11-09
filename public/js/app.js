@@ -269,53 +269,159 @@ function tikOpBriefje(id, e) {
 // Lukt dat niet (nog niet geüpload, of offline), dan een leeg polaroidje en
 // later opnieuw.
 
-const fotoUrls = new Map() // foto-id → object-URL
+// Prestaties (M5): een foto wordt pas geladen als zijn polaroidje (bijna) in
+// beeld komt. Op het bord en in de doos staat een duimnagel van 480 × 480
+// (één keer gemaakt en bewaard in IndexedDB); groot geopend de hele foto.
+const fotoUrls = new Map() // foto-id → object-URL van de hele foto (groot)
+const duimUrls = new Map() // foto-id → object-URL van de duimnagel (klein)
 const fotoMis = new Map() // foto-id → wanneer hij er laatst niet was
-const fotoLaadt = new Set()
+const fotoLaadt = new Set() // 'klein:id' of 'groot:id'
 const FOTO_OPNIEUW_MS = 20_000
+const GROTE_FOTOS = ['groot-foto', 'gedaan-foto'] // klassen die de hele foto tonen
+const urlVoor = (maat, id) => (maat === 'groot' ? fotoUrls : duimUrls).get(id)
 
-// Een polaroidje met een stukje plakband (§5.4).
+// Een polaroidje met een stukje plakband (§5.4). Laden gebeurt via fotoKijker.
 function polaroidHtml(id, klasse = '') {
-  const url = fotoUrls.get(id)
-  if (!url) setTimeout(() => laadFoto(id), 0)
-  return `<span class="polaroid ${klasse}${url ? '' : ' leeg'}" data-foto="${esc(id)}"><img alt="" ${url ? `src="${url}"` : ''} draggable="false" /><span class="polaroid-band" aria-hidden="true"></span></span>`
+  const maat = GROTE_FOTOS.includes(klasse) ? 'groot' : 'klein'
+  const url = urlVoor(maat, id)
+  return `<span class="polaroid ${klasse}${url ? '' : ' leeg'}" data-foto="${esc(id)}" data-maat="${maat}"><img alt="" ${url ? `src="${url}"` : ''} decoding="async" draggable="false" /><span class="polaroid-band" aria-hidden="true"></span></span>`
 }
 
-function toonFoto(id) {
-  const url = fotoUrls.get(id)
-  for (const el of document.querySelectorAll(`.polaroid[data-foto="${CSS.escape(id)}"]`)) {
+function toonFoto(id, maat) {
+  const url = urlVoor(maat, id)
+  for (const el of document.querySelectorAll(`.polaroid[data-foto="${CSS.escape(id)}"][data-maat="${maat}"]`)) {
     el.classList.remove('leeg')
     const img = el.querySelector('img')
     if (img && img.getAttribute('src') !== url) img.src = url
   }
 }
 
-// Uit IndexedDB, of anders van de sync-worker (dan meteen bewaren).
-async function laadFoto(id) {
-  if (fotoUrls.has(id) || fotoLaadt.has(id) || Date.now() - (fotoMis.get(id) || 0) < FOTO_OPNIEUW_MS) return
-  fotoLaadt.add(id)
-  try {
-    let blob = await fotos.leesFoto(id).catch(() => null)
-    const adres = koppelingen.borden[staat.bord]
-    if (!blob && adres) {
-      const uit = await fotos.haalFoto(fetch, adres, id)
-      if (uit.status === 'ok') {
-        blob = uit.blob
-        await fotos.bewaarFoto(id, blob).catch(() => {})
-      }
+// De hele foto: uit IndexedDB, of anders van de sync-worker (dan meteen bewaren).
+async function heleFoto(id) {
+  let blob = await fotos.leesFoto(id).catch(() => null)
+  const adres = koppelingen.borden[staat.bord]
+  if (!blob && adres) {
+    const uit = await fotos.haalFoto(fetch, adres, id)
+    if (uit.status === 'ok') {
+      blob = uit.blob
+      await fotos.bewaarFoto(id, blob).catch(() => {})
     }
-    if (!blob) return fotoMis.set(id, Date.now())
-    fotoMis.delete(id)
-    fotoUrls.set(id, URL.createObjectURL(blob))
-    toonFoto(id)
-  } finally {
-    fotoLaadt.delete(id)
+  }
+  return blob
+}
+
+// Een duimnagel: al bewaard, of nu maken uit de hele foto (en bewaren).
+// Lukt maken niet, dan de hele foto, dan zie je in elk geval iets.
+async function duimFoto(id) {
+  const duim = await fotos.leesDuim(id).catch(() => null)
+  if (duim) return duim
+  const blob = await heleFoto(id)
+  if (!blob) return null
+  try {
+    const nieuw = await fotos.maakDuim(blob)
+    await fotos.bewaarDuim(id, nieuw).catch(() => {})
+    return nieuw
+  } catch {
+    return blob
   }
 }
 
-// Lege polaroidjes in beeld nog eens proberen (na een peiling of bij online).
+async function laadFoto(id, maat = 'klein') {
+  const sleutel = `${maat}:${id}`
+  if (urlVoor(maat, id) || fotoLaadt.has(sleutel) || Date.now() - (fotoMis.get(id) || 0) < FOTO_OPNIEUW_MS) return
+  fotoLaadt.add(sleutel)
+  try {
+    const blob = maat === 'groot' ? await heleFoto(id) : await duimFoto(id)
+    if (!blob) return fotoMis.set(id, Date.now())
+    fotoMis.delete(id)
+    const url = URL.createObjectURL(blob)
+    ;(maat === 'groot' ? fotoUrls : duimUrls).set(id, url)
+    if (maat === 'groot') {
+      ruimGroteFotosOp()
+      return toonFoto(id, maat)
+    }
+    // Eerst uitpakken, dan pas tonen (zie toonStraks).
+    const img = new Image()
+    img.src = url
+    await img.decode?.().catch(() => {})
+    toonStraks(id, maat)
+  } finally {
+    fotoLaadt.delete(sleutel)
+  }
+}
+
+// Foto's die klaar zijn, tonen we samen, als het scrollen even stilvalt (en
+// anders uiterlijk na 0,7 s). Gemeten in M5: elke foto die tíjdens het
+// scrollen verschijnt, laat de browser het hele bord opnieuw tekenen; met
+// 300 briefjes hapert het scrollen daar op een gewone telefoon van.
+const teTonen = new Map()
+let toonTimer = 0
+let toonSinds = 0
+let laatsteScroll = 0
+addEventListener('scroll', () => (laatsteScroll = performance.now()), { passive: true, capture: true })
+function toonStraks(id, maat) {
+  teTonen.set(`${maat}:${id}`, [id, maat])
+  toonSinds ||= performance.now()
+  toonTimer ||= setTimeout(toonWachtende, 120)
+}
+function toonWachtende() {
+  toonTimer = 0
+  const nu = performance.now()
+  if (nu - laatsteScroll < 150 && nu - toonSinds < 700) {
+    toonTimer = setTimeout(toonWachtende, 100)
+    return
+  }
+  const lijst = [...teTonen.values()]
+  teTonen.clear()
+  toonSinds = 0
+  requestAnimationFrame(() => {
+    for (const [id, maat] of lijst) toonFoto(id, maat)
+  })
+}
+
+// Hele foto's kosten geheugen: houd er hooguit een handvol vast. Wat niet
+// meer op het scherm staat, laten we los (de browser ruimt het dan op).
+function ruimGroteFotosOp() {
+  if (fotoUrls.size <= 8) return
+  const inBeeld = new Set([...document.querySelectorAll('.polaroid img[src^="blob:"]')].map((i) => i.getAttribute('src')))
+  for (const [id, url] of fotoUrls) {
+    if (fotoUrls.size <= 8) break
+    if (inBeeld.has(url) || duimUrls.get(id) === url) continue
+    URL.revokeObjectURL(url)
+    fotoUrls.delete(id)
+  }
+}
+
+// Kijkt welke lege polaroidjes (bijna) in beeld zijn: alleen die laden.
+// De marge van 400 px laadt een foto net voordat je hem ziet.
+const fotoKijker =
+  'IntersectionObserver' in window
+    ? new IntersectionObserver(
+        (lijst) => {
+          for (const e of lijst) {
+            if (!e.isIntersecting) continue
+            fotoKijker.unobserve(e.target)
+            laadFoto(e.target.dataset.foto, e.target.dataset.maat)
+          }
+        },
+        { rootMargin: '1200px 0px' },
+      )
+    : null
+const kijkNaar = (el) => (fotoKijker ? fotoKijker.observe(el) : laadFoto(el.dataset.foto, el.dataset.maat))
+const legePolaroids = (el) => (el.matches?.('.polaroid.leeg[data-foto]') ? [el] : el.querySelectorAll ? el.querySelectorAll('.polaroid.leeg[data-foto]') : [])
+// Elk polaroidje dat ergens op het scherm verschijnt (bord, doos, groot,
+// schrijfvel), komt vanzelf onder de kijker; wat verdwijnt, gaat eraf.
+new MutationObserver((wijzigingen) => {
+  for (const w of wijzigingen) {
+    for (const n of w.addedNodes) for (const el of legePolaroids(n)) kijkNaar(el)
+    if (fotoKijker) for (const n of w.removedNodes) for (const el of legePolaroids(n)) fotoKijker.unobserve(el)
+  }
+}).observe(document.body, { childList: true, subtree: true })
+
+// Lege polaroidjes nog eens proberen (na een peiling of bij online), maar
+// alleen als ze in beeld zijn.
 function probeerMisteFotos() {
-  for (const el of document.querySelectorAll('.polaroid.leeg[data-foto]')) laadFoto(el.dataset.foto)
+  for (const el of document.querySelectorAll('.polaroid.leeg[data-foto]')) kijkNaar(el)
 }
 
 // ----- De uploadwachtrij (in IndexedDB, dus ook na een herstart) -----
@@ -383,7 +489,15 @@ async function kiesFoto(bestand) {
   } catch {
     throw new fotos.FotoFout('Bewaren lukt niet: is de opslag van je telefoon vol?')
   }
-  fotoUrls.set(id, URL.createObjectURL(blob))
+  // Meteen te zien, klein en groot. De duimnagel voor de volgende keer
+  // maken we op de achtergrond.
+  const url = URL.createObjectURL(blob)
+  fotoUrls.set(id, url)
+  duimUrls.set(id, url)
+  fotos
+    .maakDuim(blob)
+    .then((duim) => fotos.bewaarDuim(id, duim))
+    .catch(() => {})
   return id
 }
 
@@ -529,6 +643,7 @@ function bordSkelet(scherm) {
     return `
       <section class="bord bord-vrij" aria-label="Briefjes op het bord (vrij)">
         <div class="vrij" id="vrij">
+          <p class="vh" id="vrij-uitleg">Verplaats een briefje met de pijltjestoetsen, met Shift in grotere stappen.</p>
           <div class="vrij-wereld" id="vrij-wereld"></div>
           <div class="zoomknoppen" role="group" aria-label="Zoomen">
             <button type="button" data-zoom="in" aria-label="Inzoomen">+</button>
@@ -722,6 +837,7 @@ function legVrijNeer() {
     const p = plek[id]
     if (!p) continue
     el.style.width = `${VRIJ_PX}px`
+    el.querySelector('.briefje')?.setAttribute('aria-describedby', 'vrij-uitleg')
     // Filters dimmen in vrij in plaats van te verschuiven.
     el.classList.toggle('gedimd', !past(bd, bd.briefjes[id], ui.filter))
     if (el.classList.contains('sleept')) continue
@@ -771,20 +887,23 @@ function zetVastInVrij(bd, now) {
   for (const b of lijst) if (!waarde(b.v, 'vrij')) zetVeld(b, 'vrij', { x: Math.round(plek[b.id].x), y: Math.round(plek[b.id].y) }, now)
 }
 
-function opNeerzetten(plek, x, y) {
-  const id = plek.dataset.id
+// Een briefje op een nieuwe vrije plek zetten (slepen of pijltjestoetsen).
+function zetNeerInVrij(id, x, y) {
   const bd = bord()
   const b = bd.briefjes[id]
+  if (!b || b.weg) return
+  const now = Date.now()
+  zetVastInVrij(bd, now)
+  zetVeld(b, 'vrij', { x: Math.round(klem(x, 0, VRIJ.breedte - VRIJ.briefje)), y: Math.round(klem(y, 0, 99_000)) }, now)
+  // Bovenop de stapel.
+  const hoogste = Math.max(0, ...opHetBord(bd).filter((a) => a.id !== id).map((a) => waarde(a.v, 'stapel', 0)))
+  if (waarde(b.v, 'stapel', 0) <= hoogste) zetVeld(b, 'stapel', hoogste + 1, now)
+  opslaan()
+}
+
+function opNeerzetten(plek, x, y) {
   ui.bezig--
-  if (b && !b.weg) {
-    const now = Date.now()
-    zetVastInVrij(bd, now)
-    zetVeld(b, 'vrij', { x: Math.round(klem(x, 0, VRIJ.breedte - VRIJ.briefje)), y: Math.round(klem(y, 0, 99_000)) }, now)
-    // Bovenop de stapel.
-    const hoogste = Math.max(0, ...opHetBord(bd).filter((a) => a.id !== id).map((a) => waarde(a.v, 'stapel', 0)))
-    if (waarde(b.v, 'stapel', 0) <= hoogste) zetVeld(b, 'stapel', hoogste + 1, now)
-    opslaan()
-  }
+  zetNeerInVrij(plek.dataset.id, x, y)
   // Zonder glijden op de nieuwe plek zetten, en dan opnieuw prikken.
   plek.style.transition = 'none'
   plek.classList.remove('opgetild', 'sleept')
@@ -798,6 +917,29 @@ function opNeerzetten(plek, x, y) {
     wiebelBuren(plek)
   })
 }
+
+// Vrij met het toetsenbord (M5): de pijltjes verplaatsen het briefje dat
+// focus heeft, met Shift in grotere stappen. Het briefje glijdt naar zijn
+// nieuwe plek en houdt de focus. Elke stap is een gewone wijziging, die
+// gebundeld naar de anderen gaat (net als slepen).
+const PIJLEN = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+view.addEventListener('keydown', (e) => {
+  const r = PIJLEN[e.key]
+  const knop = r && e.target.closest?.('#vrij-wereld .briefje')
+  if (!knop || !vrijApi || laag.open || ui.bezig || e.altKey || e.ctrlKey || e.metaKey) return
+  e.preventDefault()
+  const plek = knop.closest('.briefje-plek')
+  const stap = e.shiftKey ? 80 : 20
+  zetNeerInVrij(plek.dataset.id, Number(plek.dataset.ux) + r[0] * stap, Number(plek.dataset.uy) + r[1] * stap)
+  legVrijNeer()
+  vrijApi.toon(plek)
+  meld('Briefje verplaatst')
+})
+// Met Tab door het vrije bord: het briefje met focus komt in beeld.
+view.addEventListener('focusin', (e) => {
+  const plek = e.target.closest?.('#vrij-wereld .briefje-plek')
+  if (plek && vrijApi && !ui.bezig) vrijApi.toon(plek)
+})
 
 function opAnnuleren(plek) {
   ui.bezig--
@@ -1001,7 +1143,7 @@ function openPlekKiezer() {
       </div>
       <label class="veld"><span>Naam van de plek <span class="klein">(mag leeg blijven)</span></span>
         <input id="plek-naam" maxlength="120" autocomplete="off" value="${esc(p?.naam || '')}" placeholder="Bijv. Sushi in Den Haag" /></label>
-      <p class="paneel-uitleg plek-uitleg">Tik op de kaart om de punaise neer te zetten en sleep hem precies goed. Zoeken: © OpenStreetMap-bijdragers, via Nominatim.</p>
+      <p class="paneel-uitleg plek-uitleg">Tik op de kaart om de punaise neer te zetten en sleep hem precies goed. Met een toetsenbord: Enter zet hem in het midden. Zoeken: © OpenStreetMap-bijdragers, via Nominatim.</p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-plek="terug">Terug</button>
         <button type="button" class="knop primair" data-plek="klaar">Klaar <span aria-hidden="true">📍</span></button>
@@ -1030,6 +1172,17 @@ function openPlekKiezer() {
         if (plekken.length) pasInBeeld(L, kaart, plekken, { max: 13 })
       }
       kaart.on('click', (e) => zetKiesPunaise(e.latlng.lat, e.latlng.lng))
+      // Met het toetsenbord (M5): Leaflet schuift met de pijltjes en zoomt met
+      // + en −; Enter of spatie zet de punaise in het midden van de kaart.
+      const vlak = kaart.getContainer()
+      vlak.setAttribute('role', 'application')
+      vlak.setAttribute('aria-label', 'Kaart. Schuif met de pijltjestoetsen, zoom met plus en min, en zet de punaise in het midden met Enter.')
+      vlak.addEventListener('keydown', (e) => {
+        if ((e.key !== 'Enter' && e.key !== ' ') || e.target !== vlak) return
+        e.preventDefault()
+        const c = kaart.getCenter()
+        zetKiesPunaise(c.lat, c.lng)
+      })
       setTimeout(() => kaart.invalidateSize(), 60)
     })
     .catch((err) => {
@@ -1482,8 +1635,19 @@ laag.addEventListener('close', () => {
   if (soort === 'koppel-ja' || soort === 'wie') ui.koppel = null
   if (soort === 'backup') ui.backup = null
   // Categorieën, namen, kleuren of borden aangepast: alles opnieuw tekenen.
-  if (['cats', 'cat', 'ik', 'bord', 'welkom', 'delen'].includes(soort)) render(true)
+  if (['cats', 'cat', 'ik', 'bord', 'welkom', 'delen'].includes(soort)) houdFocus(() => render(true))
 })
+
+// Opnieuw tekenen vervangt de knoppen. Had een knop focus (bijv. Meer →
+// Categorieën, net teruggezet door <dialog>), dan gaat de focus naar de
+// nieuwe versie van dezelfde knop, in plaats van verloren naar <body> (M5).
+function houdFocus(fn) {
+  const was = document.activeElement
+  const tag = was?.tagName?.toLowerCase()
+  const kenmerk = was && was !== document.body && (was.id ? `#${CSS.escape(was.id)}` : ['action', 'tab', 'filter', 'cat', 'id', 'weergave'].filter((k) => was.dataset?.[k]).map((k) => `${tag}[data-${k}="${CSS.escape(was.dataset[k])}"]`)[0])
+  fn()
+  if (kenmerk && !was.isConnected) document.querySelector(kenmerk)?.focus({ preventScroll: true })
+}
 
 // Esc (en de terugknop op Android) sluit met dezelfde beweging.
 laag.addEventListener('cancel', (e) => {
@@ -1504,9 +1668,10 @@ function hartKnopHtml(bd, b) {
   const wie = hartjesVan(b)
   const aan = wie.includes(ik)
   return `
-    <button type="button" class="hart-knop${aan ? ' aan' : ''}" data-laag="hart" aria-pressed="${aan}" aria-label="${aan ? 'Hartje weghalen' : 'Hartje geven'}">
+    <button type="button" class="hart-knop${aan ? ' aan' : ''}" data-laag="hart" aria-pressed="${aan}">
+      <span class="vh">Mijn hartje</span>
       ${hartSvg(lidVan(bd, ik).kleur, 'hart hart-groot')}
-      ${wie.length ? `<span class="hart-tal" aria-hidden="true">${wie.length}</span>` : ''}
+      ${wie.length ? `<span class="vh">, </span><span class="hart-tal">${wie.length}</span><span class="vh"> in totaal</span>` : ''}
     </button>`
 }
 
@@ -3435,10 +3600,17 @@ blok.addEventListener('click', () => {
 
 // iOS: het toetsenbord verkleint alleen de zichtbare ruimte. Het schrijfvel
 // gebruikt die maat, zodat "Prikken!" niet achter het toetsenbord verdwijnt.
+// De maat staat op het venster zelf, niet op <html>: een variabele op <html>
+// laat de browser de stijl van álle elementen opnieuw uitrekenen (gemeten in
+// M5: met 300 briefjes een hapering van een halve seconde tijdens het scrollen).
 if (window.visualViewport) {
+  let vorige = ''
   const pas = () => {
-    document.documentElement.style.setProperty('--vvh', `${visualViewport.height}px`)
-    document.documentElement.style.setProperty('--vvtop', `${visualViewport.offsetTop}px`)
+    const nu = `${visualViewport.height}|${visualViewport.offsetTop}`
+    if (nu === vorige) return
+    vorige = nu
+    laag.style.setProperty('--vvh', `${visualViewport.height}px`)
+    laag.style.setProperty('--vvtop', `${visualViewport.offsetTop}px`)
   }
   visualViewport.addEventListener('resize', pas)
   visualViewport.addEventListener('scroll', pas)

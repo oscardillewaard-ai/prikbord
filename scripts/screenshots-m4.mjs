@@ -96,10 +96,9 @@ await p.goto(`http://localhost:${POORT}/`)
 // De foto's in IndexedDB zetten, zoals de app dat doet, en opnieuw laden.
 await p.evaluate(async (fotos) => {
   const db = await new Promise((ok) => {
-    const r = indexedDB.open('prikbord', 1)
+    const r = indexedDB.open('prikbord')
     r.onupgradeneeded = () => {
-      r.result.createObjectStore('fotos')
-      r.result.createObjectStore('wachtrij')
+      for (const n of ['fotos', 'wachtrij', 'duimen']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n)
     }
     r.onsuccess = () => ok(r.result)
   })

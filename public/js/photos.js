@@ -8,12 +8,14 @@
 // Database "prikbord":
 // - fotos:    foto-id → { blob, t }        (t = wanneer hij hier kwam)
 // - wachtrij: foto-id → { bord, t }        (moet nog naar de sync-worker)
+// - duimen:   foto-id → { blob, t }        (vierkantje van 480 px voor het bord,
+//                                           alleen op deze telefoon; versie 2, M5)
 
-import { POGINGEN, DOEL_BYTES, doelMaat, besteUitkomst } from './fotomaat.js'
+import { POGINGEN, DOEL_BYTES, DUIM_KWALITEIT, doelMaat, besteUitkomst, duimVak } from './fotomaat.js'
 import { fotoSoort, MAX_FOTO } from './validate.js'
 
 const DB_NAAM = 'prikbord'
-const DB_VERSIE = 1
+const DB_VERSIE = 2
 
 export class FotoFout extends Error {}
 
@@ -27,6 +29,7 @@ function db() {
         const d = req.result
         if (!d.objectStoreNames.contains('fotos')) d.createObjectStore('fotos')
         if (!d.objectStoreNames.contains('wachtrij')) d.createObjectStore('wachtrij')
+        if (!d.objectStoreNames.contains('duimen')) d.createObjectStore('duimen')
       }
       req.onsuccess = () => {
         // Een nieuwere versie van de app in een ander tabblad: loslaten.
@@ -61,7 +64,12 @@ async function doe(store, modus, fn) {
 export const bewaarFoto = (id, blob) => doe('fotos', 'readwrite', (s) => s.put({ blob, t: Date.now() }, id))
 export const leesFoto = async (id) => (await doe('fotos', 'readonly', (s) => s.get(id)))?.blob || null
 export const heeftFoto = async (id) => !!(await doe('fotos', 'readonly', (s) => s.getKey(id)))
-export const wisFoto = (id) => doe('fotos', 'readwrite', (s) => s.delete(id))
+export async function wisFoto(id) {
+  await doe('fotos', 'readwrite', (s) => s.delete(id))
+  await doe('duimen', 'readwrite', (s) => s.delete(id))
+}
+export const bewaarDuim = (id, blob) => doe('duimen', 'readwrite', (s) => s.put({ blob, t: Date.now() }, id))
+export const leesDuim = async (id) => (await doe('duimen', 'readonly', (s) => s.get(id)))?.blob || null
 export const alleFotos = () =>
   doe('fotos', 'readonly', (s) => s.getAllKeys()).then(async (ids) => {
     const uit = []
@@ -133,6 +141,35 @@ export async function verklein(bestand) {
   } finally {
     klaar()
   }
+}
+
+// Een duimnagel voor het bord: het vierkant uit het midden, 480 × 480
+// (fotomaat.js: duimVak). Eén tegelijk, zodat het scrollen er niet van
+// gaat haperen als er veel foto's tegelijk in beeld komen.
+let duimRij = Promise.resolve()
+export function maakDuim(blob) {
+  const klus = duimRij.then(async () => {
+    const { img, klaar } = await laadBeeld(blob)
+    try {
+      if (img.decode) await img.decode().catch(() => {})
+      const { sx, sy, s, uit } = duimVak(img.naturalWidth, img.naturalHeight)
+      const canvas = document.createElement('canvas')
+      canvas.width = uit
+      canvas.height = uit
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, uit, uit)
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, uit, uit)
+      const duim = await naarBlob(canvas, DUIM_KWALITEIT)
+      if (!duim) throw new FotoFout('Verkleinen lukt niet in deze browser.')
+      return duim
+    } finally {
+      klaar()
+    }
+  })
+  duimRij = klus.catch(() => {})
+  return klus
 }
 
 // ---------- Naar en van de sync-worker ----------

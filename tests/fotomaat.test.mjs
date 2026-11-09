@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { doelMaat, besteUitkomst, naarBase64, vanBase64, schoonFotos, fotosVan, POGINGEN, MAX_ZIJDE, DOEL_BYTES } from '../public/js/fotomaat.js'
+import { doelMaat, besteUitkomst, naarBase64, vanBase64, schoonFotos, fotosVan, duimVak, POGINGEN, MAX_ZIJDE, DOEL_BYTES, DUIM } from '../public/js/fotomaat.js'
 import { fotoSoort, MAX_FOTO, FOTO_TYPES } from '../public/js/validate.js'
 import { beginStaat, nieuwBriefje, zetVeld, verwijder } from '../public/js/model.js'
 
@@ -22,6 +22,21 @@ test('verkleinen: langste zijde hooguit 1600 px, verhoudingen gelijk, nooit grot
   // Rare invoer valt terug op 1 px in plaats van te crashen.
   assert.deepEqual(doelMaat(0, NaN), { w: 1, h: 1 })
   assert.deepEqual(doelMaat(20000, 1, 1024), { w: 1024, h: 1 })
+})
+
+test('duimnagel voor het bord: het vierkant uit het midden, hooguit 480 px, nooit groter dan de foto', () => {
+  assert.equal(DUIM, 480)
+  // Liggend 1600 × 1200: het midden, 1200 breed, naar 480.
+  assert.deepEqual(duimVak(1600, 1200), { sx: 200, sy: 0, s: 1200, uit: 480 })
+  // Staand 1200 × 1600 (iPhone): het midden in de hoogte.
+  assert.deepEqual(duimVak(1200, 1600), { sx: 0, sy: 200, s: 1200, uit: 480 })
+  // Kleiner dan 480: niet opblazen.
+  assert.deepEqual(duimVak(300, 200), { sx: 50, sy: 0, s: 200, uit: 200 })
+  // Panorama en rare invoer.
+  assert.deepEqual(duimVak(1600, 300), { sx: 650, sy: 0, s: 300, uit: 300 })
+  assert.deepEqual(duimVak(0, NaN), { sx: 0, sy: 0, s: 1, uit: 1 })
+  // Geheugen: een uitgepakte duimnagel is ruim 8× kleiner dan de foto zelf.
+  assert.ok((1600 * 1200) / (480 * 480) > 8)
 })
 
 test('eerste poging is 1600 px met kwaliteit 0,8 (§6.4); de beste uitkomst blijft onder 400 KB', () => {

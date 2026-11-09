@@ -8,7 +8,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { start } from './serve.mjs'
 import { startWorker, nepNominatim } from './nep-worker.mjs'
-import { beginStaat, nieuwBriefje } from '../public/js/model.js'
+import { beginStaat, nieuwBriefje, zetVeld } from '../public/js/model.js'
+import { demoStaatM2, DEMO_NU } from './demo.mjs'
+import { axeScan } from './axe.mjs'
 import sharp from 'sharp'
 
 // De versie uit app.js, zodat het release-ritueel (APP_VERSION en CACHE
@@ -1178,6 +1180,221 @@ await L.ctx.close()
 w4.server.close()
 nep.terug()
 
+// ---------- M5: prestaties en toegankelijkheid ----------
+
+// Een bord klaarzetten (localStorage) en openen.
+async function paginaMet(staatJson, sleutel) {
+  const r = await nieuwePagina()
+  await r.ctx.addInitScript(
+    ([json, k]) => {
+      if (!sessionStorage.getItem(k)) {
+        localStorage.setItem('prikbord.v1', json)
+        sessionStorage.setItem(k, '1')
+      }
+    },
+    [staatJson, sleutel],
+  )
+  await r.p.goto(URL_APP)
+  await r.p.waitForSelector('.bord-binnen.klaar')
+  await r.p.evaluate(() => document.fonts.ready)
+  return r
+}
+const idbDuimen = (p) =>
+  p.evaluate(
+    () =>
+      new Promise((ok) => {
+        const r = indexedDB.open('prikbord')
+        r.onsuccess = () => {
+          const q = r.result.transaction('duimen').objectStore('duimen').getAllKeys()
+          q.onsuccess = () => ok(q.result)
+        }
+      }),
+  )
+const imgMaat = (p, sel) => p.evaluate((s) => [document.querySelector(s)?.naturalWidth, document.querySelector(s)?.naturalHeight], sel)
+
+// 34. Prestaties: foto's pas laden als ze in beeld komen, en op het bord een duimnagel
+{
+  const nu = Date.now() - 3600e3
+  const s5 = beginStaat(nu - 864e5, 'Oscar')
+  const bd5 = s5.borden[s5.bord]
+  const ik5 = s5.apparaat.ik[s5.bord]
+  for (let i = 0; i < 80; i++) {
+    const b = nieuwBriefje(bd5, { id: `m5brief${String(i).padStart(3, '0')}`, door: ik5, tekst: `Briefje ${i}: iets leuks om te doen`, cat: 'todo', now: nu - i * 60e3 })
+    if (i === 0) zetVeld(b, 'foto', 'm5fotoBoven1', nu)
+    if (i === 79) zetVeld(b, 'foto', 'm5fotoOnder1', nu)
+  }
+  s5.apparaat.seenVersion = 999
+  s5.apparaat.naam = 'Oscar'
+  const heel = (await sharp({ create: { width: 1600, height: 1200, channels: 3, background: '#4a7fb5' } }).jpeg({ quality: 80 }).toBuffer()).toString('base64')
+  const r = await paginaMet(JSON.stringify(s5), 'm5')
+  // De foto's in IndexedDB, zoals de app ze bewaart, en opnieuw starten.
+  await r.p.evaluate(
+    ([ids, b64]) =>
+      new Promise((klaar) => {
+        const o = indexedDB.open('prikbord')
+        o.onupgradeneeded = () => {
+          for (const n of ['fotos', 'wachtrij', 'duimen']) if (!o.result.objectStoreNames.contains(n)) o.result.createObjectStore(n)
+        }
+        o.onsuccess = () => {
+          const tx = o.result.transaction('fotos', 'readwrite')
+          for (const id of ids) tx.objectStore('fotos').put({ blob: new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: 'image/jpeg' }), t: Date.now() }, id)
+          tx.oncomplete = () => {
+            o.result.close()
+            klaar()
+          }
+        }
+      }),
+    [['m5fotoBoven1', 'm5fotoOnder1'], heel],
+  )
+  await r.p.reload()
+  await r.p.waitForSelector('.bord-binnen.klaar')
+  const boven = '.bord-binnen .polaroid[data-foto="m5fotoBoven1"]'
+  const onder = '.bord-binnen .polaroid[data-foto="m5fotoOnder1"]'
+  await r.p.waitForSelector(`${boven}:not(.leeg) img[src^="blob:"]`, { timeout: 10000 })
+  ok('prestaties: de foto bovenaan het bord laadt meteen', true)
+  const duimMaat = await imgMaat(r.p, `${boven} img`)
+  ok('prestaties: op het bord staat een duimnagel van 480 × 480, niet de hele foto van 1600 × 1200', duimMaat[0] === 480 && duimMaat[1] === 480, duimMaat.join(' × '))
+  await r.p.waitForTimeout(1500)
+  const afstand = await r.p.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top - innerHeight), onder)
+  const nogLeeg = await r.p.evaluate((sel) => document.querySelector(sel).classList.contains('leeg') && !document.querySelector(`${sel} img`).getAttribute('src'), onder)
+  ok('prestaties: een foto ver onder in beeld (meer dan 1200 px) laadt nog niet', afstand > 1200 && nogLeeg, `${afstand} px onder het scherm`)
+  ok('prestaties: de duimnagel is bewaard in IndexedDB; die van onderaan nog niet', JSON.stringify(await idbDuimen(r.p)) === '["m5fotoBoven1"]', JSON.stringify(await idbDuimen(r.p)))
+  await r.p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), onder)
+  await r.p.waitForSelector(`${onder}:not(.leeg) img[src^="blob:"]`, { timeout: 10000 })
+  ok('prestaties: …en laadt zodra hij in beeld komt', true)
+  await r.p.evaluate(() => scrollTo(0, 0))
+  await r.p.waitForTimeout(300)
+  await r.p.locator('.briefje-plek[data-id="m5brief000"] .briefje').click()
+  await r.p.waitForSelector('.laag[open] .groot-foto:not(.leeg) img[src^="blob:"]', { timeout: 10000 })
+  const heleMaat = await imgMaat(r.p, '.laag .groot-foto img')
+  ok('prestaties: groot geopend zie je de hele foto (1600 × 1200)', heleMaat[0] === 1600 && heleMaat[1] === 1200, heleMaat.join(' × '))
+  await r.p.waitForSelector('.laag[open]:not(.bezig)')
+  await r.p.keyboard.press('Escape')
+  await r.p.waitForSelector('.laag:not([open])', { state: 'attached' })
+  ok(
+    'prestaties: de maat van het toetsenbord (--vvh) staat op het venster, niet op <html> (anders rekent de browser bij elke scrollbeweging alle briefjes opnieuw door)',
+    await r.p.evaluate(() => !document.documentElement.style.getPropertyValue('--vvh') && !!document.querySelector('#laag').style.getPropertyValue('--vvh')),
+  )
+  await r.ctx.close()
+}
+
+// 35. Toegankelijkheid: axe-core op elk scherm, de focus, en vrij en de kaart met het toetsenbord
+{
+  const s6 = demoStaatM2()
+  s6.apparaat.naam = 'Oscar'
+  zetVeld(s6.borden[s6.bord].briefjes.demo02, 'plek', { lat: 52.0786, lng: 4.3103, naam: 'Den Haag' }, DEMO_NU)
+  zetVeld(s6.borden[s6.bord].briefjes.demo02, 'link', 'https://www.example.nl/sushi', DEMO_NU)
+  const bid = s6.bord
+  const r = await paginaMet(JSON.stringify(s6), 'm5a11y')
+  const q = r.p
+  const scan = async (naam) => {
+    await q.waitForTimeout(600)
+    const v = await axeScan(q)
+    ok(`toegankelijk (axe, WCAG 2.2 AA): ${naam}`, v.length === 0, v.slice(0, 3).join(' | '))
+  }
+  const sluitAlles = async () => {
+    for (let i = 0; i < 4 && (await q.locator('.laag[open]').count()); i++) {
+      await q.keyboard.press('Escape')
+      await q.waitForTimeout(500)
+    }
+  }
+  const focusOp = () => q.evaluate(() => document.activeElement?.dataset?.id || document.activeElement?.dataset?.action || document.activeElement?.id || document.activeElement?.tagName)
+  await scan('het bord')
+  // Een briefje openen met Enter en sluiten met Esc: de focus komt terug.
+  await q.locator('.briefje-plek[data-id="demo02"] .briefje').focus()
+  await q.keyboard.press('Enter')
+  await q.waitForSelector('.laag[open] .groot')
+  await scan('een geopend briefje (met link en plek)')
+  await q.waitForSelector('.laag[open]:not(.bezig)')
+  await q.keyboard.press('Escape')
+  await q.waitForSelector('.laag:not([open])', { state: 'attached' })
+  await q.waitForTimeout(300)
+  ok('focus: na het sluiten staat de focus weer op hetzelfde briefje', (await focusOp()) === 'demo02')
+  await q.locator('.briefje-plek[data-id="demo02"] .briefje').click()
+  await q.waitForSelector('.laag[open] .groot')
+  await q.waitForTimeout(400)
+  ok('hartje-knop: vaste naam met het aantal erin ("Mijn hartje, 3 in totaal")', (await q.locator('.laag .hart-knop').evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim())) === 'Mijn hartje , 3 in totaal')
+  await q.click('[data-laag="gedaan"]')
+  await scan('het formulier "Gedaan!"')
+  await sluitAlles()
+  await q.click('#blok')
+  await q.waitForSelector('#vel-tekst')
+  await scan('het schrijfvel')
+  await q.click('[data-vel="link"]')
+  await scan('het schrijfvel met het linkveld')
+  await q.click('[data-vel="plek"]')
+  await q.waitForSelector('#kies-kaart.leaflet-container')
+  await scan('een plek kiezen')
+  // De punaise met het toetsenbord in het midden zetten.
+  await q.locator('#kies-kaart.leaflet-container').focus()
+  await q.keyboard.press('Enter')
+  await q.waitForTimeout(300)
+  ok('plek kiezen met het toetsenbord: Enter op de kaart zet de punaise in het midden', (await q.locator('#kies-kaart .leaflet-marker-icon').count()) === 1 && (await q.locator('#plek-status').innerText()).trim().length > 0)
+  await sluitAlles()
+  await q.evaluate(() => document.querySelector('.laag[open]') && document.querySelector('.laag').close())
+  await q.waitForTimeout(400)
+  await q.click('[data-action="trek"]')
+  await q.waitForSelector('.laag[open]:not(.bezig)')
+  await scan('trek een briefje')
+  await sluitAlles()
+  await q.click('[data-tab="kaart"]')
+  await q.waitForSelector('#kaart .kaart-pin')
+  await scan('de kaart')
+  await q.click('[data-tab="gedaan"]')
+  await scan('de Gedaan-doos')
+  await q.click('[data-tab="meer"]')
+  await scan('Meer')
+  await q.locator('[data-action="cats"]').focus()
+  await q.keyboard.press('Enter')
+  await q.waitForSelector('.laag[open]')
+  await scan('de categorieën')
+  await q.waitForSelector('.laag[open]:not(.bezig)')
+  await q.keyboard.press('Escape')
+  await q.waitForSelector('.laag:not([open])', { state: 'attached' })
+  await q.waitForTimeout(300)
+  ok('focus: na de categorieën staat de focus weer op de knop Categorieën (niet kwijt na het opnieuw tekenen)', (await focusOp()) === 'cats', await focusOp())
+  for (const [actie, naam] of [
+    ['ik', 'wie ben ik'],
+    ['delen', 'bord delen'],
+    ['changelog', 'wat is er nieuw'],
+    ['borden', 'alle borden'],
+  ]) {
+    await q.click(`[data-action="${actie}"]`)
+    await q.waitForSelector('.laag[open]')
+    await scan(naam)
+    await sluitAlles()
+  }
+  // Vrij met het toetsenbord: pijltjes verplaatsen het briefje met focus.
+  await q.click('[data-tab="bord"]')
+  await q.click('[data-weergave="vrij"]')
+  await q.waitForSelector('#vrij-wereld .briefje-plek')
+  await q.waitForTimeout(600)
+  await scan('vrij')
+  const briefje = q.locator('#vrij-wereld .briefje-plek[data-id="demo03"] .briefje')
+  ok('vrij met het toetsenbord: het briefje zegt hoe het werkt (aria-describedby)', (await briefje.getAttribute('aria-describedby')) === 'vrij-uitleg')
+  await briefje.focus()
+  const voor = await q.evaluate(() => {
+    const el = document.querySelector('#vrij-wereld .briefje-plek[data-id="demo03"]')
+    return { x: Number(el.dataset.ux), y: Number(el.dataset.uy) }
+  })
+  for (const k of ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown']) await q.keyboard.press(k)
+  await q.keyboard.press('Shift+ArrowLeft')
+  await q.waitForTimeout(400)
+  const na = (await opslag(q)).borden[bid].briefjes.demo03.v.vrij.w
+  ok('vrij met het toetsenbord: 3× rechts, 1× omlaag en Shift+links = 20 eenheden per stap, 80 met Shift', na.x === Math.round(voor.x) + 60 - 80 && na.y === Math.round(voor.y) + 20, `${JSON.stringify(voor)} → ${JSON.stringify(na)}`)
+  ok('vrij met het toetsenbord: het briefje houdt de focus', (await focusOp()) === 'demo03')
+  ok('vrij met het toetsenbord: het verplaatste briefje ligt bovenop de stapel', (await opslag(q)).borden[bid].briefjes.demo03.v.stapel.w >= 1)
+  await r.ctx.close()
+  // De eerste start: "Wie ben jij?"
+  const w = await nieuwePagina()
+  await w.p.goto(URL_APP)
+  await w.p.waitForSelector('.laag[open] #welkom-form')
+  await w.p.waitForTimeout(600)
+  const vw = await axeScan(w.p)
+  ok('toegankelijk (axe, WCAG 2.2 AA): de eerste start ("Wie ben jij?")', vw.length === 0, vw.slice(0, 3).join(' | '))
+  await w.ctx.close()
+}
+
 // 10. Service worker: registreert en de app opent offline
 ;({ ctx, p } = await nieuwePagina())
 await p.goto(URL_APP)
@@ -1198,10 +1415,10 @@ await p.evaluate(() => caches.open('sportagenda-v34').then((c) => c.put('/x', ne
 await p.evaluate(
   () =>
     new Promise((ok) => {
-      const r = indexedDB.open('prikbord', 1)
+      const r = indexedDB.open('prikbord')
       r.onupgradeneeded = () => {
-        r.result.createObjectStore('fotos')
-        r.result.createObjectStore('wachtrij')
+        // Nieuwe database (de app maakte hem nog niet): dezelfde stores als de app.
+        for (const n of ['fotos', 'wachtrij', 'duimen']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n)
       }
       r.onsuccess = () => {
         const tx = r.result.transaction('fotos', 'readwrite')

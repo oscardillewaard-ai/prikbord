@@ -14,9 +14,11 @@
     "screenshots:m2": "node scripts/screenshots-m2.mjs",
     "worker": "node scripts/bouw-worker.mjs",
     "nep-worker": "node scripts/nep-worker.mjs",
-    "screenshots:m4": "node scripts/screenshots-m4.mjs"
+    "screenshots:m4": "node scripts/screenshots-m4.mjs",
+    "prestaties": "node scripts/prestaties.mjs"
   },
   "devDependencies": {
+    "axe-core": "4.14.0",
     "oxlint": "1.92.0",
     "playwright": "1.63.0",
     "sharp": "0.35.5"

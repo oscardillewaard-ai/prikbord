@@ -26,6 +26,24 @@ export function doelMaat(breedte, hoogte, max = MAX_ZIJDE) {
   return { w: Math.max(1, Math.round(w * f)), h: Math.max(1, Math.round(h * f)) }
 }
 
+// ---------- Duimnagels voor het bord (M5, prestaties) ----------
+// Op het bord en in de Gedaan-doos is een polaroidje hooguit ~130 px breed
+// (± 400 echte pixels op een iPhone) en altijd vierkant (object-fit: cover).
+// Een foto van 1600 × 1200 uitpakken kost daar 1,9 miljoen beeldpunten
+// geheugen; een vierkant van 480 × 480 maar 0,23 miljoen. Groot geopend
+// zie je gewoon de hele foto.
+export const DUIM = 480 // px, de zijde van het vierkantje
+export const DUIM_KWALITEIT = 0.8
+
+// Het vierkant uit het midden van de foto (zoals object-fit: cover het
+// toont), en hoe groot het wordt: hooguit DUIM, nooit groter dan de foto.
+export function duimVak(breedte, hoogte, zijde = DUIM) {
+  const w = Math.max(1, Math.round(breedte) || 1)
+  const h = Math.max(1, Math.round(hoogte) || 1)
+  const s = Math.min(w, h)
+  return { sx: Math.floor((w - s) / 2), sy: Math.floor((h - s) / 2), s, uit: Math.min(zijde, s) }
+}
+
 // Van alle pogingen: de eerste die onder het doel blijft, anders de kleinste.
 // `uitkomsten` is een lijst met { bytes } in de volgorde van POGINGEN.
 export function besteUitkomst(uitkomsten) {
