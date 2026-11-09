@@ -24,7 +24,7 @@ A5 (de worker wordt gebouwd met `npm run worker`).
 | M0 lezen en plan | klaar, akkoord van Oscar (8 nov) | `ccr-dd7e09d5-7p41e5` |
 | M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
 | M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
-| M3 samen | klaar, wacht op Oscar: worker neerzetten en testen met twee telefoons (nog niet gedeployd) | `ccr-fc257cf9-70gzqa` |
+| M3 samen | klaar, nog niet gedeployd. Oscar zet de worker later neer en test dan met twee telefoons; M4 mag al beginnen (besluit 9 nov) | `ccr-fc257cf9-70gzqa` |
 | M4 link, foto en kaart | nog niet begonnen | |
 | M5 afronden | nog niet begonnen | |
 
@@ -58,6 +58,7 @@ A5 (de worker wordt gebouwd met `npm run worker`).
 - **V7, deploy M2:** "Deploy en geef prompt". `main` is fast-forward gezet naar `99d6957` (M2 deel 2); workflow-run 3 (lint, tests, deploy). Live op `https://oscardillewaard-ai.github.io/prikbord/` (versie 2). Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M2.
 - **A4 (categorieën nooit wissen):** "A4 akkoord" (bij de start van M3).
 - **A5 (de worker bouwen uit de kern plus validate.js en merge.js):** "Akkoord met a5" (na M3).
+- **Verder zonder worker:** "Kan je verder gaan zonder de worker? Dan doe ik dat als ik thuis ben." M4 mag dus beginnen voordat de worker staat en voordat M3 met twee telefoons getest is. Testen gaat tot die tijd met de nep-worker (`npm run nep-worker`, of `startWorker()` in de rooktest). Gevolg: vindt Oscar bij de test met twee telefoons iets in M3, dan lossen we dat op in een latere chat.
 
 ## Nagelezen in de documentatie (via curl)
 
@@ -302,7 +303,7 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - **Bijwerken na een sync:** `naSync` → `tekenNaSync` → `render()` (keyed, zoals in M2). Een briefje dat groot openligt, wordt opnieuw getekend als het veranderde (`ui.grootVan`). Een polaroidje dat nog laadt, moet dat overleven.
 - **Testen:** `tests/hulp.mjs` heeft `telefoon()` (een nep-telefoon met de echte motor tegen de echte worker), de rooktest start de worker lokaal met `startWorker()` uit `scripts/nep-worker.mjs`, en `npm run nep-worker` doet dat op poort 8787 om zelf te proberen (vul bij "Bord delen" `http://localhost:8787` in).
 - **Rekentijd:** foto's worden niet samengevoegd, dus die zijn goedkoop. Een bord-PUT kost rekentijd naar de grootte van het hele bord (zie het logboek van M3).
-- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft.
+- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft. De worker staat nog niet (besluit 9 nov: M4 mag al beginnen). Zet Oscar hem pas na M4 neer, dan plakt hij meteen de versie met de foto-endpoints; anders plakt hij die later nog een keer (2 minuten werk, de briefjes in KV blijven staan).
 - **Kaart en plekken:** de zoekfunctie mag alleen via de eigen worker (§6.5), met minstens 1 s tussen twee zoekopdrachten in de app én in de worker.
 
 ## Startprompt voor M4
@@ -319,6 +320,9 @@ Prikbord, mijlpaal M4 (link, foto en kaart). Je werkt in de repo oscardillewaard
    "Voor M4: handig om te weten").
 3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor Leaflet uit
    public/parken/vendor/ (BSD-2, licentiebestand mee) en de kaart van Parkenjacht.
+   De echte worker staat nog niet (Oscar zet hem later neer, zie "De worker
+   neerzetten" in de voortgang). Test met de nep-worker. Geeft Oscar het adres,
+   zet het dan als DEFAULT_SYNC_URL in public/js/app.js.
 4. Doe M4 (§8 van de spec): link op een briefje, foto's (§6.4: verkleinen,
    IndexedDB, uploadwachtrij, foto-endpoints in de worker met tests voor de
    limieten), de kaart-tab en plekken kiezen op vier manieren (§5.9), met
