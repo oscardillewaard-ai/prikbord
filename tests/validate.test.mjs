@@ -81,6 +81,25 @@ test('apparaat: onbekende borden en rare waarden vallen weg, geluid staat standa
   assert.deepEqual(a.concept, { bord: s.bord, tekst: 'half af', cat: 'todo', nieuw: true })
 })
 
+test('concept (M4): link, foto en plek gaan mee; null = weggehaald, onzin valt weg', () => {
+  const s = beginStaat(NU)
+  const json = JSON.parse(JSON.stringify(s))
+  json.apparaat.concept = { bord: s.bord, tekst: 'Sushi', cat: 'uiteten', link: 'https://sushi.example/menu', foto: 'fotoABCD1234', plek: { lat: 52.07, lng: 4.3, naam: 'Den Haag' } }
+  assert.deepEqual(schoonStaat(json).apparaat.concept, {
+    bord: s.bord,
+    tekst: 'Sushi',
+    cat: 'uiteten',
+    nieuw: true,
+    link: 'https://sushi.example/menu',
+    foto: 'fotoABCD1234',
+    plek: { lat: 52.07, lng: 4.3, naam: 'Den Haag' },
+  })
+  json.apparaat.concept = { bord: s.bord, tekst: 'x', link: null, foto: null, plek: null }
+  assert.deepEqual(schoonStaat(json).apparaat.concept, { bord: s.bord, tekst: 'x', nieuw: true, link: null, foto: null, plek: null })
+  json.apparaat.concept = { bord: s.bord, tekst: 'x', link: 'javascript:alert(1)', foto: '../geheim', plek: { lat: 99, lng: 4 } }
+  assert.deepEqual(schoonStaat(json).apparaat.concept, { bord: s.bord, tekst: 'x', nieuw: true })
+})
+
 test('actief bord dat niet bestaat → het eerste bord', () => {
   const s = JSON.parse(JSON.stringify(beginStaat(NU)))
   const id = s.bord

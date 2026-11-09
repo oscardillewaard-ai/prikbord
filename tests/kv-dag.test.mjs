@@ -14,6 +14,10 @@
 //   waarin iedereen tegelijk de app open heeft en elke 30 tot 150 seconden
 //   iets doet; de helft daarvan is een reeks van 3 hartjes binnen 2 seconden.
 //   Daarnaast opent iedereen dat bord nog 3 keer 2 minuten, met 2 bewerkingen.
+// - Foto's (M4): bij 15% van de gewone bewerkingen komt er een foto op het
+//   briefje. Die gaat apart naar de worker (één KV-sleutel per foto), en elke
+//   andere telefoon op dat bord haalt hem één keer op. De keuze komt uit een
+//   eigen PRNG, zodat de rest van de dag precies zo verloopt als in M3.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import worker from '../proxy/prikbord-sync-worker.js'
@@ -29,6 +33,7 @@ const CODES = { thuis: 'Thuis_code_123456789012', reis: 'Reis_code_1234567890123
 
 test('KV-schrijfacties op een drukke dag (meld dit getal)', async (t) => {
   const r = prng(14112026)
+  const rFoto = prng(9112026)
   const kv = nepKv()
   const env = { PRIKBORD: kv }
   const viaWorker = (url, init = {}) => worker.fetch(new Request(url, init), env)
@@ -37,11 +42,18 @@ test('KV-schrijfacties op een drukke dag (meld dit getal)', async (t) => {
   const plan = (op, doe) => wachtrij.push({ op, doe, n: wachtrij.length })
   const kies = (lijst) => lijst[Math.floor(r() * lijst.length)]
   let bewerkingen = 0
+  const foto = { aantal: 0, schrijf: 0, lees: 0 }
+  const meetKv = async (doe) => {
+    const voor = { ...kv.tel }
+    await doe()
+    foto.schrijf += kv.tel.schrijf - voor.schrijf
+    foto.lees += kv.tel.lees - voor.lees
+  }
 
   // Telefoons: Oscar en Tara op beide borden, Sam, Noor en Daan alleen op de reis.
   const mensen = ['Oscar', 'Tara', 'Sam', 'Noor', 'Daan']
   const telefoons = mensen.map((naam) => {
-    const tel = { naam, borden: {}, ik: {}, adres: {}, laatste: {}, open: null, bundel: {} }
+    const tel = { naam, borden: {}, ik: {}, adres: {}, laatste: {}, open: null, bundel: {}, fotos: new Set() }
     tel.sync = maakSync({
       fetch: viaWorker,
       lees: (id) => tel.borden[id],
@@ -91,6 +103,15 @@ test('KV-schrijfacties op een drukke dag (meld dit getal)', async (t) => {
       zetVeld(b, 'vrij', { x: Math.floor(r() * 770), y: Math.floor(r() * 2000) }, tijd)
       zetVeld(b, 'stapel', Math.floor(tijd / 1000), tijd)
     }
+    if (soort === 'gewoon' && rFoto() < 0.15) {
+      const fotoId = `foto${tl.naam}${foto.aantal++}x`
+      zetVeld(b, 'foto', fotoId, tijd)
+      tl.fotos.add(fotoId)
+      const a = tl.adres[id]
+      plan(tijd, () =>
+        meetKv(() => viaWorker(`${a.u}/bord/${a.r}/foto/${fotoId}`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]) })),
+      )
+    }
     tl.laatste[id] = tijd
     const bun = tl.bundel[id] || (tl.bundel[id] = { sinds: tijd, token: 0 })
     if (!bun.actief) Object.assign(bun, { actief: true, sinds: tijd })
@@ -111,14 +132,29 @@ test('KV-schrijfacties op een drukke dag (meld dit getal)', async (t) => {
     bewerk(tl, id, 'slepen')
   }
 
+  // Foto's die binnenkwamen, één keer ophalen (daarna staan ze op de telefoon).
+  async function haalFotos(tl, id) {
+    const a = tl.adres[id]
+    for (const b of Object.values(tl.borden[id].briefjes)) {
+      const f = !b.weg && waarde(b.v, 'foto')
+      if (!f || tl.fotos.has(f)) continue
+      await meetKv(async () => {
+        const res = await viaWorker(`${a.u}/bord/${a.r}/foto/${f}`)
+        if (res.ok) tl.fotos.add(f)
+      })
+    }
+  }
+
   // De app open: één keer alle borden, dan het actieve bord peilen.
   function sessie(tl, start, duur, id, bewerkingen) {
     plan(start, async () => {
       tl.open = { tot: start + duur, id }
       for (const b of Object.keys(tl.borden)) await tl.sync.ronde(b)
+      await haalFotos(tl, id)
       const peil = async () => {
         if (!tl.open || tijd >= tl.open.tot) return (tl.open = null)
         await tl.sync.ronde(id)
+        await haalFotos(tl, id)
         plan(tijd + peilInterval(tijd, tl.laatste[id] || 0), peil)
       }
       plan(tijd + peilInterval(tijd, tl.laatste[id] || 0), peil)
@@ -171,9 +207,10 @@ test('KV-schrijfacties op een drukke dag (meld dit getal)', async (t) => {
 
   const schrijf = kv.tel.schrijf - voor.schrijf
   const lees = kv.tel.lees - voor.lees
-  t.diagnostic(`drukke dag: ${bewerkingen} bewerkingen op 2 borden door 5 mensen`)
-  t.diagnostic(`drukke dag: ${schrijf} KV-schrijfacties (gratis plan: 1.000 per dag, samen met Parkenjacht)`)
-  t.diagnostic(`drukke dag: ${lees} KV-leesacties (gratis plan: 100.000 per dag)`)
+  t.diagnostic(`drukke dag: ${bewerkingen} bewerkingen op 2 borden door 5 mensen, met ${foto.aantal} foto's`)
+  t.diagnostic(`drukke dag: ${schrijf} KV-schrijfacties (gratis plan: 1.000 per dag, samen met Parkenjacht), waarvan ${foto.schrijf} voor foto's`)
+  t.diagnostic(`drukke dag: ${lees} KV-leesacties (gratis plan: 100.000 per dag), waarvan ${foto.lees} voor foto's`)
+  assert.equal(foto.schrijf, foto.aantal, 'precies één schrijfactie per foto')
   // Iedereen eindigt met dezelfde stand.
   for (const id of [thuis, reis]) {
     const op = telefoons.filter((tl) => tl.borden[id])

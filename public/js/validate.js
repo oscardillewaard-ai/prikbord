@@ -42,6 +42,23 @@ export function schoonLink(w) {
   }
 }
 
+// ---------- Foto's (§6.4) ----------
+// Ook gebruikt door de worker (die krijgt dit bestand mee, zie A5), zodat app
+// en worker dezelfde grens en dezelfde soorten aanhouden.
+export const MAX_FOTO = 1.5 * 1024 * 1024 // bytes per foto (1,5 MB)
+export const FOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+// De soort van een foto aan de eerste bytes, niet aan wat de afzender zegt.
+// Geeft 'image/jpeg', 'image/png', 'image/webp' of null.
+export function fotoSoort(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || 0)
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x)) return 'image/png'
+  const ascii = (van, tot) => String.fromCharCode(...b.subarray(van, tot))
+  if (b.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp'
+  return null
+}
+
 const datumRe = /^\d{4}-\d{2}-\d{2}$/
 const ofNull = (f) => (w) => (w === null ? null : f(w))
 
@@ -164,6 +181,13 @@ function schoonApparaat(raw, borden) {
     if (typeof a.concept.cat === 'string' && ID_RE.test(a.concept.cat)) concept.cat = a.concept.cat
     if (typeof a.concept.id === 'string' && ID_RE.test(a.concept.id)) concept.id = a.concept.id
     concept.nieuw = a.concept.nieuw !== false
+    // Link, foto en plek (M4). Ontbreekt een veld, dan geldt wat er al op
+    // het briefje stond; null = weggehaald op het schrijfvel.
+    for (const k of ['link', 'foto', 'plek']) {
+      if (!(k in a.concept)) continue
+      const w = VELD_SCHOON[k](a.concept[k])
+      if (w !== undefined) concept[k] = w
+    }
   }
   return {
     geluid: typeof a.geluid === 'boolean' ? a.geluid : true,
