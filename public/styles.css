@@ -2010,3 +2010,490 @@ html.vrij-modus body {
     animation: none;
   }
 }
+
+/* =====================================================================
+   M4: link, foto en kaart
+   ===================================================================== */
+
+/* ---------- Polaroid met plakband (§5.4) ---------- */
+
+.polaroid {
+  position: relative;
+  display: block;
+  width: 78%;
+  margin: 10px auto 4px;
+  padding: 5px 5px 16px;
+  background: #fdfdfb;
+  box-shadow: 0 1px 3px rgba(40, 25, 10, 0.35);
+  transform: rotate(-2deg);
+}
+.polaroid.scheef-r {
+  transform: rotate(2.2deg);
+}
+.polaroid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #e9e4da;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+/* Nog niet binnen (offline, of de ander uploadt nog): een vriendelijk leeg polaroidje. */
+.polaroid.leeg img {
+  visibility: hidden;
+}
+.polaroid.leeg::after {
+  content: '📷';
+  position: absolute;
+  inset: 5px 5px 16px;
+  display: grid;
+  place-items: center;
+  font: 28px/1 var(--ui);
+  color: #8c8273;
+  background: repeating-linear-gradient(135deg, #ece6da 0 8px, #e4ddcf 8px 16px);
+  opacity: 0.85;
+}
+.polaroid.bezig::after {
+  content: '⏳';
+  animation: pols 1.2s ease-in-out infinite;
+}
+@keyframes pols {
+  50% {
+    opacity: 0.45;
+  }
+}
+.polaroid-band {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  width: 46px;
+  height: 16px;
+  margin-left: -23px;
+  background: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.1)), rgba(246, 236, 200, 0.75);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transform: rotate(3deg);
+  clip-path: polygon(0 10%, 8% 0, 18% 10%, 30% 0, 44% 9%, 58% 0, 72% 10%, 86% 0, 100% 10%, 100% 90%, 90% 100%, 76% 90%, 62% 100%, 48% 91%, 34% 100%, 20% 90%, 8% 100%, 0 90%);
+}
+.polaroid.klein {
+  width: 74px;
+  margin: 0;
+  padding: 3px 3px 10px;
+}
+.polaroid.klein .polaroid-band {
+  width: 32px;
+  height: 11px;
+  margin-left: -16px;
+  top: -6px;
+}
+.polaroid.klein.leeg::after {
+  inset: 3px 3px 10px;
+  font-size: 20px;
+}
+.polaroid.groot-foto {
+  width: 88%;
+  margin: 18px auto 8px;
+  padding: 8px 8px 26px;
+}
+.polaroid.gedaan-foto {
+  width: 70%;
+  margin: 12px auto 4px;
+}
+.geplakt .polaroid {
+  width: 84%;
+  margin-top: 8px;
+}
+
+/* ---------- Link en plek klein op het briefje ("🔗 ah.nl") ---------- */
+
+.bijlagen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0 2px;
+}
+.bijlage {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 2px 7px 2px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(31, 52, 116, 0.18);
+  font: 600 11.5px/1.3 var(--ui);
+  color: var(--inkt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Het geopende briefje: foto, link en plek ---------- */
+
+.groot-link,
+.groot-waar {
+  margin: 12px 0 0;
+  font: 600 15px/1.35 var(--ui);
+}
+.groot-link a {
+  color: #1d4fb8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.groot-waar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.groot-waar-naam {
+  overflow-wrap: anywhere;
+}
+.groot-waar .klein-knop {
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+/* ---------- Het schrijfvel: paperclip, plakband en kaartje ---------- */
+
+.vel-papier {
+  flex-direction: column;
+}
+.vel-bijlagen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding-right: 34px;
+}
+.vel-bijlagen:empty {
+  display: none;
+}
+.vel-bijlagen .vel-foto {
+  position: relative;
+  margin-top: 8px;
+}
+.vel-bijlage {
+  font-size: 13px;
+  padding: 3px 4px 3px 7px;
+  gap: 4px;
+}
+.weg-knop {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: -4px -2px -4px 2px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(31, 52, 116, 0.12);
+  color: var(--inkt);
+  font: 700 12px/1 var(--ui);
+  cursor: pointer;
+}
+.vel-foto .weg-knop {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  margin: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.weg-knop:focus-visible,
+.extra-knop:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: 2px;
+}
+.vel-extra {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.extra-knop {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: 650 14px var(--ui);
+  color: #3a2a1b;
+  background: var(--korrel), #fbf4e6;
+  box-shadow: 0 2px 5px rgba(25, 12, 0, 0.3);
+  cursor: pointer;
+}
+.extra-knop[aria-expanded='true'] {
+  box-shadow:
+    0 0 0 2px #fbf4e6,
+    0 2px 5px rgba(25, 12, 0, 0.3);
+}
+/* Een stukje plakband als icoon (er is geen emoji voor plakband). */
+.icoon-plakband {
+  display: inline-block;
+  width: 20px;
+  height: 9px;
+  background: rgba(214, 196, 140, 0.95);
+  transform: rotate(-12deg);
+  clip-path: polygon(0 15%, 15% 0, 30% 15%, 50% 0, 70% 15%, 85% 0, 100% 15%, 100% 85%, 85% 100%, 70% 85%, 50% 100%, 30% 85%, 15% 100%, 0 85%);
+}
+.vel-link {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.vel-link[hidden] {
+  display: none;
+}
+.vel-link input {
+  flex: 1;
+  min-width: 0;
+  font: 16px var(--ui);
+  padding: 10px 12px;
+  border: 1.5px solid #d9cbb4;
+  border-radius: 10px;
+  background: #fff;
+  color: #2a1f15;
+}
+.vel-link input:focus {
+  outline: none;
+  border-color: #1d64d8;
+  box-shadow: 0 0 0 3px rgba(29, 100, 216, 0.25);
+}
+.vel .fout {
+  margin-top: 8px;
+}
+/* Met het toetsenbord open op de iPhone is er weinig ruimte: het vel krimpt mee. */
+.vel-plek {
+  min-height: 130px;
+}
+
+/* Foto bij "Gedaan!" */
+.gedaan-foto-rij {
+  display: flex;
+  margin: 4px 0 6px;
+}
+.gedaan-foto-rij .extra-knop {
+  flex: none;
+  padding-inline: 16px;
+}
+.gedaan-foto-rij .vel-foto {
+  position: relative;
+  margin: 8px 0 0 6px;
+}
+
+/* ---------- De kaart-tab (§5.9) ---------- */
+
+html.kaart-modus,
+html.kaart-modus body {
+  overflow: hidden;
+}
+.kaart-tab {
+  position: fixed;
+  left: var(--lijst);
+  right: var(--lijst);
+  top: 120px;
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
+  z-index: 1;
+  isolation: isolate;
+  background: #6b4628;
+}
+.kaart,
+.kies-kaart {
+  position: absolute;
+  inset: 0;
+  background: #e8e2d4;
+  font: 14px var(--ui);
+}
+.kaart-laden {
+  position: absolute;
+  inset: 40% 20px auto;
+  margin: 0;
+  text-align: center;
+  font: 650 15px var(--ui);
+  color: #4a3624;
+  z-index: 2;
+}
+.kaart-leeg {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 24px;
+  z-index: 1000;
+  pointer-events: none;
+}
+.kaart-leeg .leeg-briefje {
+  pointer-events: auto;
+  filter: var(--schaduw);
+}
+.kaart-leeg[hidden] {
+  display: none;
+}
+
+/* Een punaise in de kleur van de categorie, met de emoji erin. */
+.kaart-pin-icoon {
+  background: none;
+  border: 0;
+}
+.kaart-pin {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 46px;
+  filter: drop-shadow(1px 3px 2px rgba(30, 15, 2, 0.45));
+  transition: transform 0.15s ease;
+}
+.kaart-pin-kop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 17px/1 var(--ui);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85) 0 18%, transparent 45%), var(--papier, #fffdf6);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.12),
+    0 0 0 2px rgba(60, 40, 20, 0.55);
+}
+.kaart-pin-naald {
+  position: absolute;
+  left: 16px;
+  top: 32px;
+  width: 2px;
+  height: 13px;
+  border-radius: 1px;
+  background: linear-gradient(#8a8a8a, #4d4d4d);
+}
+.kaart-pin.grijs {
+  filter: grayscale(1) opacity(0.6) drop-shadow(1px 2px 2px rgba(30, 15, 2, 0.35));
+}
+.kaart-pin.nieuw .kaart-pin-kop {
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.12),
+    0 0 0 2px #c62828,
+    0 0 0 5px rgba(198, 40, 40, 0.25);
+}
+.kaart-pin.kies .kaart-pin-kop {
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85) 0 18%, transparent 45%), #e0453a;
+}
+.leaflet-marker-icon:hover .kaart-pin,
+.leaflet-marker-icon:focus-visible .kaart-pin {
+  transform: translateY(-3px) scale(1.08);
+}
+.leaflet-marker-icon:focus-visible {
+  outline: none;
+}
+.leaflet-marker-icon:focus-visible .kaart-pin-kop {
+  box-shadow: 0 0 0 3px #1d64d8;
+}
+.leaflet-container a {
+  color: #1d4fb8;
+}
+.chip-gedaan {
+  --papier: var(--p-mint);
+}
+
+/* ---------- Een plek kiezen ---------- */
+
+.plek-kiezer .zoek-rij {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.plek-kiezer .zoek-rij input {
+  flex: 1;
+  min-width: 0;
+  font: 16px var(--ui);
+  padding: 11px 12px;
+  border: 1.5px solid #d9cbb4;
+  border-radius: 999px;
+  background: #fff;
+  color: #2a1f15;
+}
+.plek-kiezer .zoek-rij input:focus {
+  outline: none;
+  border-color: #1d64d8;
+  box-shadow: 0 0 0 3px rgba(29, 100, 216, 0.3);
+}
+.zoek-knop {
+  flex: none;
+  padding-inline: 16px;
+}
+.zoek-knop:disabled {
+  opacity: 0.75;
+}
+.zoek-uitkomsten {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  border-radius: var(--groep-hoek);
+  overflow: hidden;
+  background: var(--groep-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.zoek-uitkomsten[hidden] {
+  display: none;
+}
+.zoek-uitkomst {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: 15px/1.3 var(--ui);
+  color: #2a1f15;
+  cursor: pointer;
+}
+li + li .zoek-uitkomst {
+  border-top: 1px solid rgba(80, 55, 30, 0.14);
+}
+.zoek-uitkomst:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: -3px;
+}
+.kies-kaart {
+  position: relative;
+  inset: auto;
+  height: min(46vh, 340px);
+  margin: 8px 0 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
+}
+.plek-status {
+  min-height: 1.3em;
+  margin: 8px 4px 4px;
+  font: 700 14px var(--ui);
+  color: #fff4e6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.plek-knoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.plek-uitleg {
+  font-size: 13px;
+}
+#backup-keus .rij:disabled {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .polaroid.bezig::after {
+    animation: none;
+  }
+  .kaart-pin {
+    transition: none;
+  }
+}

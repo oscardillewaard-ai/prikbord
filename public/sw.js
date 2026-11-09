@@ -2,7 +2,7 @@
 // internet is, en offline terugvallen op de cache. Zoals Tarapp.
 // Bij een release: CACHE hier ophogen, samen met APP_VERSION in js/app.js
 // (tests/sw.test.mjs bewaakt dat).
-const CACHE = 'prikbord-v3'
+const CACHE = 'prikbord-v4'
 const SHELL = [
   './',
   'index.html',
@@ -15,8 +15,10 @@ const SHELL = [
   'js/geluid.js',
   'js/layout.js',
   'js/link.js',
+  'js/map.js',
   'js/merge.js',
   'js/model.js',
+  'js/photos.js',
   'js/plek.js',
   'js/randen.js',
   'js/seed.js',
@@ -31,6 +33,8 @@ const SHELL = [
   'img/hout.svg',
   'img/korrel.svg',
   'img/kurk.svg',
+  'vendor/leaflet.css',
+  'vendor/leaflet.js',
 ]
 
 self.addEventListener('install', (event) => {

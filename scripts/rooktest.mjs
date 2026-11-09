@@ -7,8 +7,9 @@ import { readFile, writeFile, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { start } from './serve.mjs'
-import { startWorker } from './nep-worker.mjs'
+import { startWorker, nepNominatim } from './nep-worker.mjs'
 import { beginStaat, nieuwBriefje } from '../public/js/model.js'
+import sharp from 'sharp'
 
 // De versie uit app.js, zodat het release-ritueel (APP_VERSION en CACHE
 // ophogen) de rooktest niet hoeft aan te passen.
@@ -21,6 +22,10 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const uitslag = []
 const ok = (naam, gelukt, extra = '') => uitslag.push(`${gelukt ? 'PASS' : 'FAIL'}  ${naam}${extra ? `  — ${extra}` : ''}`)
 const tmp = await mkdtemp(join(tmpdir(), 'prikbord-'))
+
+// Kaarttegels (M4) niet echt bij OpenStreetMap ophalen: een effen tegel.
+const TEGEL = await sharp({ create: { width: 256, height: 256, channels: 3, background: '#e9e3d3' } }).png().toBuffer()
+let tegelVragen = 0
 
 async function nieuwePagina(opties = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'nl-NL', acceptDownloads: true, ...opties })
@@ -35,6 +40,10 @@ async function nieuwePagina(opties = {}) {
           window.__geluid++
         }
       }
+  })
+  await ctx.route('https://tile.openstreetmap.org/**', (r) => {
+    tegelVragen++
+    return r.fulfill({ status: 200, contentType: 'image/png', body: TEGEL })
   })
   const p = await ctx.newPage()
   p.on('pageerror', (e) => uitslag.push(`FAIL  fout in de pagina — ${String(e).slice(0, 140)}`))
@@ -767,6 +776,407 @@ ok('kapotte koppel-link: een vriendelijke melding, verder niets', (await D.p.loc
 await D.ctx.close()
 nepWorker.close()
 
+
+// ---------- M4: link, foto en kaart ----------
+// Testfoto's: een staande iPhone-foto (liggende pixels met EXIF-oriëntatie 6,
+// zoals een iPhone hem opslaat), een foto vol detail, en een HEIC-bestand.
+// Een echte HEIC kan Chromium niet lezen; dit bestand heeft alleen de kop
+// ervan. De app reageert in Chromium op beide hetzelfde.
+const FOTO_STAAND = join(tmp, 'iphone-staand.jpg')
+const FOTO_RUIS = join(tmp, 'veel-detail.jpg')
+const FOTO_HEIC = join(tmp, 'foto.heic')
+{
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="4032" height="3024"><defs><linearGradient id="g"><stop offset="0" stop-color="#3a7"/><stop offset="1" stop-color="#ec5"/></linearGradient></defs>
+    <rect width="100%" height="100%" fill="url(#g)"/><circle cx="2400" cy="1500" r="700" fill="#258"/></svg>`
+  await sharp(Buffer.from(svg)).jpeg({ quality: 95 }).withMetadata({ orientation: 6 }).toFile(FOTO_STAAND)
+  const ruis = Buffer.alloc(3000 * 2250 * 3)
+  let x = 12345
+  for (let i = 0; i < ruis.length; i++) ruis[i] = (x = (x * 1103515245 + 12345) & 0x7fffffff) >> 23
+  await sharp(ruis, { raw: { width: 3000, height: 2250, channels: 3 } }).jpeg({ quality: 92 }).toFile(FOTO_RUIS)
+  await writeFile(FOTO_HEIC, Buffer.from('\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic', 'binary'))
+}
+const W4POORT = 4322
+const W4URL = `http://localhost:${W4POORT}`
+const nep = nepNominatim() // de vragen van de worker aan Nominatim, afgevangen
+const w4 = await startWorker(W4POORT, undefined, { env: {} })
+const fotoSleutels = () => [...w4.kv.data.keys()].filter((k) => k.startsWith('foto:'))
+const idbFoto = (p, id) =>
+  p.evaluate(
+    (id) =>
+      new Promise((ok) => {
+        const r = indexedDB.open('prikbord')
+        r.onsuccess = () => {
+          const q = r.result.transaction('fotos').objectStore('fotos').get(id)
+          q.onsuccess = async () => {
+            const rec = q.result
+            if (!rec) return ok(null)
+            const bm = await createImageBitmap(rec.blob)
+            ok({ size: rec.blob.size, type: rec.blob.type, w: bm.width, h: bm.height })
+          }
+        }
+      }),
+    id,
+  )
+const idbWachtrij = (p) =>
+  p.evaluate(
+    () =>
+      new Promise((ok) => {
+        const r = indexedDB.open('prikbord')
+        r.onsuccess = () => {
+          const q = r.result.transaction('wachtrij').objectStore('wachtrij').getAllKeys()
+          q.onsuccess = () => ok(q.result)
+        }
+      }),
+  )
+async function kiesFotoOp(p, knop, bestand) {
+  const [kiezer] = await Promise.all([p.waitForEvent('filechooser'), p.click(knop)])
+  await kiezer.setFiles(bestand)
+}
+async function briefjeVan(p, tekst) {
+  const s = await opslag(p)
+  return Object.values(s.borden[s.bord].briefjes).find((b) => b.v?.tekst?.w === tekst)
+}
+async function nieuwVel(p, tekst, cat) {
+  await p.click('#blok')
+  await p.waitForSelector('#vel-tekst')
+  if (cat) await p.click(`.tabje[data-cat="${cat}"]`)
+  await p.fill('#vel-tekst', tekst)
+}
+async function prikNu(p) {
+  await p.click('.prik')
+  await dicht(p)
+  await p.waitForTimeout(450)
+}
+async function openPlek(p) {
+  await p.click('[data-vel="plek"]')
+  await p.waitForSelector('#kies-kaart.leaflet-container')
+}
+
+// 29. Een link op een briefje (§5.5)
+const L = await nieuwePagina({ permissions: ['geolocation'], geolocation: { latitude: 52.0116, longitude: 4.3571 } })
+await L.p.goto(URL_APP)
+await welkom(L.p, 'Oscar')
+await nieuwVel(L.p, 'Lasagne van Allerhande', 'recepten')
+await L.p.click('[data-vel="link"]')
+ok('M4 link: de paperclip opent een linkveld met focus', await L.p.evaluate(() => document.activeElement?.id === 'vel-link'))
+await L.p.fill('#vel-link', 'javascript:alert(1)')
+await L.p.click('[data-vel="link-ok"]')
+ok('link: javascript: wordt geweigerd, met uitleg', (await L.p.locator('#vel-fout').innerText()).includes('http') && (await L.p.locator('#vel-bijlagen .bijlage').count()) === 0)
+await L.p.fill('#vel-link', 'ah.nl/allerhande/recept/lasagne')
+await L.p.keyboard.press('Enter')
+ok('link: Enter bewaart de link en prikt nog niet', (await L.p.locator('#vel-bijlagen').innerText()).includes('ah.nl') && (await L.p.locator('.laag[open] #vel-form').count()) === 1)
+await L.p.waitForTimeout(600) // concept na 400 ms bewaard
+await L.p.reload()
+await L.p.waitForSelector('#vel-tekst')
+ok('link: een half geschreven briefje met link komt terug na herladen', (await L.p.inputValue('#vel-tekst')) === 'Lasagne van Allerhande' && (await L.p.locator('#vel-bijlagen').innerText()).includes('ah.nl'))
+await prikNu(L.p)
+const lasagne = briefjeOp(L.p, 'Lasagne')
+ok('link: op het briefje staat "🔗 ah.nl"', (await lasagne.locator('.bijlage').innerText()).includes('ah.nl'))
+let br4 = await briefjeVan(L.p, 'Lasagne van Allerhande')
+ok('link: bewaard als https-link met een eigen tijdstempel', br4.v.link.w === 'https://ah.nl/allerhande/recept/lasagne' && typeof br4.v.link.t === 'number')
+await lasagne.locator('.briefje').click()
+await L.p.waitForSelector('.laag[open] .groot')
+const linkA = L.p.locator('.groot-link a')
+ok('link: het geopende briefje heeft een link die in een nieuw tabblad opent', (await linkA.getAttribute('href')) === 'https://ah.nl/allerhande/recept/lasagne' && (await linkA.getAttribute('target')) === '_blank' && (await linkA.getAttribute('rel')).includes('noopener'))
+await rustig(L.p)
+await L.p.click('[data-laag="bewerk"]')
+await L.p.click('[data-vel="link-weg"]')
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Lasagne van Allerhande')
+ok('link: weghalen met het kruisje (leeg, met tijdstempel)', br4.v.link.w === null && (await lasagne.locator('.bijlage').count()) === 0)
+
+// 30. Foto's (§6.4)
+await nieuwVel(L.p, 'Picknick in het Haagse Bos', 'dagjeuit')
+await kiesFotoOp(L.p, '[data-vel="foto"]', FOTO_STAAND)
+await L.p.waitForSelector('#vel-bijlagen .polaroid:not(.leeg) img[src^="blob:"]')
+ok('foto: een polaroidje op het schrijfvel', (await L.p.locator('#vel-bijlagen .polaroid-band').count()) === 1)
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Picknick in het Haagse Bos')
+const fotoPicknick = br4.v.foto?.w
+let f4 = await idbFoto(L.p, fotoPicknick)
+ok('foto: als JPEG in IndexedDB (database prikbord, store fotos)', f4?.type === 'image/jpeg')
+ok('foto: de staande iPhone-foto staat rechtop en is verkleind tot 1200 × 1600', f4?.w === 1200 && f4?.h === 1600, `${f4?.w} × ${f4?.h}`)
+ok('foto: kleiner dan 400 KB', f4?.size < 400 * 1024, `${Math.round(f4?.size / 1024)} KB`)
+const lsLengte = await L.p.evaluate(() => localStorage.getItem('prikbord.v1').length)
+ok('foto: niet in localStorage, alleen het id', lsLengte < 30_000 && /^[\w-]{16}$/.test(fotoPicknick || ''), `${lsLengte} tekens`)
+const picknick = briefjeOp(L.p, 'Picknick')
+ok('foto: een polaroidje met plakband op het bord', (await picknick.locator('.polaroid:not(.leeg) img[src^="blob:"]').count()) === 1 && (await picknick.locator('.polaroid-band').count()) === 1)
+await nieuwVel(L.p, 'Grasveld vol detail', 'dagjeuit')
+await kiesFotoOp(L.p, '[data-vel="foto"]', FOTO_RUIS)
+await L.p.waitForSelector('#vel-bijlagen .polaroid:not(.leeg):not(.bezig) img[src^="blob:"]', { timeout: 30000 })
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Grasveld vol detail')
+const fotoGras = br4.v.foto?.w
+f4 = await idbFoto(L.p, fotoGras)
+ok('foto: ook een foto vol detail wordt kleiner dan 400 KB (langste zijde ≤ 1600 px)', f4?.size <= 400 * 1024 && Math.max(f4.w, f4.h) <= 1600, `${f4?.w} × ${f4?.h}, ${Math.round(f4?.size / 1024)} KB`)
+await nieuwVel(L.p, 'HEIC-proef')
+await kiesFotoOp(L.p, '[data-vel="foto"]', FOTO_HEIC)
+await L.p.waitForFunction(() => document.querySelector('#vel-fout')?.textContent.includes('niet lezen'))
+ok('foto: een HEIC die de browser niet kan lezen geeft een vriendelijke melding', (await L.p.locator('#vel-bijlagen .polaroid').count()) === 0 && (await L.p.locator('#vel-fout').innerText()).includes('HEIC'))
+await L.p.click('[data-laag="weggooien"]')
+await dicht(L.p)
+// Gedaan met een foto (§5.8)
+await picknick.locator('.briefje').click()
+await L.p.waitForSelector('.laag[open] .groot')
+await rustig(L.p)
+await L.p.click('[data-laag="gedaan"]')
+await kiesFotoOp(L.p, '[data-gedaan-foto="kies"]', FOTO_STAAND)
+await L.p.waitForSelector('#gedaan-foto-rij .polaroid:not(.leeg) img[src^="blob:"]')
+await L.p.click('#gedaan-form [type="submit"]')
+await dicht(L.p)
+await L.p.waitForTimeout(1300)
+br4 = await briefjeVan(L.p, 'Picknick in het Haagse Bos')
+const fotoGedaan = br4.v.gedaan?.w?.foto
+ok('Gedaan met foto: de foto hoort bij "gedaan", naast de foto van het briefje', /^[\w-]{16}$/.test(fotoGedaan || '') && fotoGedaan !== fotoPicknick && br4.v.foto.w === fotoPicknick)
+await L.p.click('[data-tab="gedaan"]')
+ok('Gedaan-doos: het plakboek toont de foto van "gedaan"', (await L.p.locator(`.geplakt .polaroid[data-foto="${fotoGedaan}"] img[src^="blob:"]`).count()) === 1)
+// Back-up met of zonder foto's
+await L.p.click('[data-tab="meer"]')
+await L.p.click('[data-action="export"]')
+await L.p.waitForSelector('#backup-keus [data-backup="met"]:not([disabled])')
+ok("back-up: kiezen met of zonder foto's, met de grootte erbij", /\d+(,\d)? (KB|MB) · 3 foto's/.test(await L.p.locator('#backup-met').innerText()), await L.p.locator('#backup-met').innerText())
+const [dlMet] = await Promise.all([L.p.waitForEvent('download'), L.p.click('[data-backup="met"]')])
+const padMet = join(tmp, dlMet.suggestedFilename())
+await dlMet.saveAs(padMet)
+const bMet = JSON.parse(await readFile(padMet, 'utf8'))
+ok("back-up met foto's: de drie foto's als base64-JPEG erin", Object.keys(bMet.fotos || {}).length === 3 && Object.values(bMet.fotos).every((x) => Buffer.from(x.data, 'base64')[0] === 0xff && x.type === 'image/jpeg'))
+await L.p.click('[data-action="export"]')
+const [dlZonder] = await Promise.all([L.p.waitForEvent('download'), L.p.click('[data-backup="zonder"]')])
+const padZonder = join(tmp, dlZonder.suggestedFilename())
+await dlZonder.saveAs(padZonder)
+const bZonder = JSON.parse(await readFile(padZonder, 'utf8'))
+ok("back-up zonder foto's: alleen de briefjes (met de foto-id's)", !('fotos' in bZonder) && JSON.stringify(bZonder).includes(fotoPicknick) && padZonder.length < padMet.length + 10)
+const N4 = await nieuwePagina()
+await N4.p.goto(URL_APP)
+await welkom(N4.p, 'Oscar')
+await N4.p.setInputFiles('#import-bestand', padMet)
+await N4.p.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Samengevoegd'))
+ok("terugzetten met foto's: \"3 foto's erbij\"", (await N4.p.locator('#toast').innerText()).includes("3 foto's"))
+// Het geïmporteerde bord staat naast het (lege) beginbord van deze telefoon.
+await N4.p.click('#kop-titel')
+await N4.p.click('[data-borden="kies"]:not([aria-current])')
+await N4.p.waitForSelector('.bord-binnen .polaroid:not(.leeg) img[src^="blob:"]')
+ok('terugzetten: de foto staat op de nieuwe telefoon, rechtop', (await idbFoto(N4.p, fotoPicknick))?.h === 1600)
+await N4.ctx.close()
+await L.p.click('[data-tab="bord"]')
+
+// 31. Een plek kiezen op vier manieren (§5.9)
+// 1. Tikken op de kaart en de punaise verslepen
+await nieuwVel(L.p, 'Strand Scheveningen', 'dagjeuit')
+await openPlek(L.p)
+ok('plek kiezen: de kaart toont "© OpenStreetMap-bijdragers"', (await L.p.locator('#kies-kaart .leaflet-control-attribution').innerText()).includes('© OpenStreetMap-bijdragers'))
+await L.p.click('[data-plek="klaar"]')
+ok('plek kiezen: zonder plek zegt "Klaar" wat je moet doen', (await L.p.locator('#plek-fout').innerText()).includes('tik op de kaart'))
+const kies = await L.p.locator('#kies-kaart').boundingBox()
+await L.p.mouse.click(kies.x + kies.width * 0.3, kies.y + kies.height * 0.4)
+await L.p.waitForSelector('#kies-kaart .kaart-pin.kies')
+const getikt = await L.p.locator('#plek-status').innerText()
+ok('1. tikken op de kaart zet de punaise neer', /° N, .*° O/.test(getikt), getikt)
+const pin4 = await L.p.locator('#kies-kaart .leaflet-marker-icon').boundingBox()
+await L.p.mouse.move(pin4.x + pin4.width / 2, pin4.y + pin4.height / 2)
+await L.p.mouse.down()
+await L.p.mouse.move(pin4.x + 90, pin4.y + 50, { steps: 10 })
+await L.p.mouse.up()
+await L.p.waitForTimeout(250)
+const gesleept = await L.p.locator('#plek-status').innerText()
+ok('1. de punaise verslepen verandert de plek', gesleept !== getikt && /° N/.test(gesleept), `${getikt} → ${gesleept}`)
+await L.p.fill('#plek-naam', 'Strand')
+await L.p.click('[data-plek="klaar"]')
+await L.p.waitForSelector('#vel-tekst')
+ok('plek: "📍 Strand" op het schrijfvel, met wat je al typte', (await L.p.locator('#vel-bijlagen').innerText()).includes('Strand') && (await L.p.inputValue('#vel-tekst')) === 'Strand Scheveningen')
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Strand Scheveningen')
+ok('plek: bewaard met coördinaten, naam en tijdstempel', br4.v.plek.w.naam === 'Strand' && Math.abs(br4.v.plek.w.lat) <= 90 && Math.abs(br4.v.plek.w.lng) <= 180 && typeof br4.v.plek.t === 'number')
+ok('plek: "📍 Strand" op het briefje', (await briefjeOp(L.p, 'Strand Scheveningen').locator('.bijlage').innerText()).includes('Strand'))
+// 2. Mijn locatie
+await nieuwVel(L.p, 'Koffie bij de TU', 'todo')
+await openPlek(L.p)
+await L.p.click('[data-plek="locatie"]')
+await L.p.waitForFunction(() => document.querySelector('#plek-status')?.textContent.includes('52,0116'))
+await L.p.click('[data-plek="klaar"]')
+await L.p.waitForSelector('#vel-tekst')
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Koffie bij de TU')
+ok('2. "Mijn locatie" zet de punaise op je plek (52.0116, 4.3571)', br4.v.plek.w.lat === 52.0116 && br4.v.plek.w.lng === 4.3571)
+// 3. Een link plakken
+const vragenVoorLink = nep.vragen.length
+await nieuwVel(L.p, 'Mauritshuis bezoeken', 'dagjeuit')
+await openPlek(L.p)
+await L.p.fill('#plek-zoek', 'Kijk: https://maps.app.goo.gl/AbCd123')
+ok('3. een verkorte Google-link: uitleg wat je wel kunt doen', (await L.p.locator('#plek-fout').innerText()).includes('verkorte link'))
+await L.p.fill('#plek-zoek', 'https://www.google.com/maps/place/Mauritshuis/@52.0804,4.3121,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d52.0804049!4d4.3143911')
+await L.p.waitForFunction(() => document.querySelector('#plek-status')?.textContent.includes('52,0804'))
+ok('3. een Google Maps-link plakken: punaise op de plek, met naam, zonder zoekdienst', (await L.p.inputValue('#plek-naam')) === 'Mauritshuis' && nep.vragen.length === vragenVoorLink)
+await L.p.click('[data-plek="klaar"]')
+await L.p.waitForSelector('#vel-tekst')
+await prikNu(L.p)
+br4 = await briefjeVan(L.p, 'Mauritshuis bezoeken')
+ok('3. bewaard: de punaise van de plek zelf (!3d/!4d), niet het midden van de kaart', br4.v.plek.w.lat === 52.080405 && br4.v.plek.w.lng === 4.314391)
+// 4. Zoeken via de worker (Nominatim, §6.5). Eerst zonder sync-server.
+await nieuwVel(L.p, 'Boekwinkel in Porto', 'vakantie')
+await openPlek(L.p)
+await L.p.fill('#plek-zoek', 'Livraria')
+await L.p.click('[data-plek="zoek"]')
+ok('4. zoeken zonder sync-server: vriendelijke uitleg (de andere drie manieren werken)', (await L.p.locator('#plek-fout').innerText()).includes('sync-server'))
+await L.p.click('[data-plek="terug"]')
+await L.p.waitForSelector('#vel-tekst')
+await L.p.click('.laag-knoppen [data-laag="weggooien"]')
+await dicht(L.p)
+// Het bord delen met de worker van M4.
+await L.p.click('[data-tab="meer"]')
+await L.p.click('[data-action="delen"]')
+await L.p.fill('#delen-form [name="url"]', W4URL)
+await L.p.click('#delen-form [type="submit"]')
+await L.p.waitForSelector('#koppel-link')
+const koppel4 = await L.p.inputValue('#koppel-link')
+await wachtOpBolletje(L.p, 'ok')
+await L.p.keyboard.press('Escape')
+await dicht(L.p)
+await L.p.click('[data-tab="bord"]')
+const zoekVragen = []
+L.p.on('request', (r) => r.url().includes('/zoek?') && zoekVragen.push(Date.now()))
+await nieuwVel(L.p, 'Boekwinkel in Porto', 'vakantie')
+await openPlek(L.p)
+const voorTypen = nep.vragen.length
+await L.p.type('#plek-zoek', 'Porto', { delay: 60 })
+await L.p.waitForTimeout(400)
+ok('4. typen zoekt niet: geen autocomplete', nep.vragen.length === voorTypen && zoekVragen.length === 0)
+await L.p.click('[data-plek="zoek"]')
+await L.p.waitForSelector('#zoek-uitkomsten:not([hidden]) .zoek-uitkomst')
+ok('4. pas na een tik op Zoek: uitkomsten met naam en adres', (await L.p.locator('.zoek-uitkomst').count()) === 2 && (await L.p.locator('.zoek-uitkomst').first().innerText()).includes('Livraria Lello'))
+ok('4. de worker vroeg het Nominatim, met de eigen User-Agent', nep.vragen.at(-1)?.q === 'Porto' && nep.vragen.at(-1)?.ua === 'Prikbord/1.0 (+https://github.com/oscardillewaard-ai/prikbord)')
+ok('4. bronvermelding bij het zoeken', (await L.p.locator('.plek-uitleg').innerText()).includes('© OpenStreetMap-bijdragers, via Nominatim'))
+await L.p.locator('.zoek-uitkomst').first().click()
+ok('4. een uitkomst kiezen: punaise en naam', (await L.p.inputValue('#plek-naam')) === 'Livraria Lello' && (await L.p.locator('#plek-status').innerText()).includes('41,1468'))
+await L.p.fill('#plek-zoek', 'Ribeira')
+await L.p.click('[data-plek="zoek"]')
+await L.p.waitForFunction(() => document.querySelector('#plek-status')?.textContent.includes('41,1408'))
+const tussen4 = zoekVragen[1] - zoekVragen[0]
+ok('4. twee zoekopdrachten vlak na elkaar: de app wacht minstens 1 seconde', zoekVragen.length === 2 && tussen4 >= 990, `${tussen4} ms`)
+ok('4. één uitkomst wordt meteen gekozen', (await L.p.inputValue('#plek-naam')) === 'Ribeira')
+w4.env.ZOEKEN = 'uit'
+await L.p.fill('#plek-zoek', 'Mauritshuis')
+await L.p.click('[data-plek="zoek"]')
+await L.p.waitForFunction(() => document.querySelector('#plek-fout')?.textContent.includes('staat even uit'))
+ok('4. ZOEKEN=uit: "Zoeken staat even uit", en de gekozen plek blijft staan', (await L.p.inputValue('#plek-naam')) === 'Ribeira')
+delete w4.env.ZOEKEN
+await L.p.click('[data-plek="klaar"]')
+await L.p.waitForSelector('#vel-tekst')
+await prikNu(L.p)
+
+// 32. De kaart-tab (§5.9)
+const tegelsVoor = tegelVragen
+await L.p.click('[data-tab="kaart"]')
+await L.p.waitForSelector('#kaart.leaflet-container .kaart-pin')
+const pins = L.p.locator('#kaart .kaart-pin')
+ok('kaart: een punaise per briefje met een plek', (await pins.count()) === 4)
+ok('kaart: de punaise heeft de kleur van de categorie (Dagje uit = zon)', (await L.p.locator('#kaart .kaart-pin.papier-zon').count()) === 2 && (await L.p.locator('#kaart .kaart-pin.papier-wit').count()) === 1)
+ok('kaart: bronvermelding "© OpenStreetMap-bijdragers" zichtbaar', await L.p.locator('#kaart .leaflet-control-attribution').isVisible() && (await L.p.locator('#kaart .leaflet-control-attribution').innerText()).includes('© OpenStreetMap-bijdragers'))
+ok('kaart: tegels van tile.openstreetmap.org', tegelVragen > tegelsVoor)
+ok('kaart: alle punaises in beeld', await L.p.evaluate(() => [...document.querySelectorAll('#kaart .kaart-pin')].every((el) => {
+  const r = el.getBoundingClientRect()
+  const k = document.querySelector('#kaart').getBoundingClientRect()
+  return r.left >= k.left && r.right <= k.right && r.top >= k.top && r.bottom <= k.bottom
+})))
+// Uitgezoomd (Porto én Den Haag in beeld) liggen de punaises bij Den Haag op
+// elkaar; daarom met het toetsenbord: focus op de punaise en Enter.
+await L.p.locator('#kaart .leaflet-marker-icon[title*="Strand"]').focus()
+await L.p.keyboard.press('Enter')
+await L.p.waitForSelector('.laag[open] .groot')
+ok('kaart: een punaise opent het briefje (ook met het toetsenbord)', (await L.p.locator('.groot-tekst').innerText()).includes('Strand Scheveningen'))
+await rustig(L.p)
+await L.p.click('[data-laag="gedaan"]')
+await L.p.click('#gedaan-form [type="submit"]')
+await dicht(L.p)
+await L.p.waitForTimeout(1300)
+ok('kaart: een gedaan briefje verdwijnt van de kaart', (await pins.count()) === 3)
+await L.p.click('[data-action="kaart-gedaan"]')
+ok('kaart: "Gedaan ook" laat gedane briefjes grijs zien', (await pins.count()) === 4 && (await L.p.locator('#kaart .kaart-pin.grijs').count()) === 1)
+await L.p.click('[data-filter="cat"][data-cat="vakantie"]')
+ok('kaart: filters werken hier ook', (await pins.count()) === 1)
+await L.p.click('[data-filter="cat"][data-cat="recepten"]')
+await L.p.click('[data-filter="cat"][data-cat="vakantie"]')
+ok('kaart: niks gevonden → uitleg met "Alles laten zien"', (await pins.count()) === 0 && (await L.p.locator('#kaart-leeg').isVisible()) && (await L.p.locator('#kaart-leeg [data-filter="alles"]').count()) === 1)
+await L.p.click('#kaart-leeg [data-filter="alles"]')
+ok('kaart: "Alles laten zien" zet ze terug', (await pins.count()) === 4)
+// "Op de kaart" vanaf een geopend briefje
+await L.p.click('[data-tab="bord"]')
+await briefjeOp(L.p, 'Mauritshuis bezoeken').locator('.briefje').click()
+await L.p.waitForSelector('.laag[open] .groot')
+await rustig(L.p)
+await L.p.click('[data-laag="op-kaart"]')
+await L.p.waitForSelector('#kaart .leaflet-marker-icon[title*="Mauritshuis"]')
+await L.p.waitForTimeout(300)
+const midden = await L.p.evaluate(() => {
+  const k = document.querySelector('#kaart').getBoundingClientRect()
+  const m = document.querySelector('#kaart .leaflet-marker-icon[title*="Mauritshuis"]').getBoundingClientRect()
+  return { dx: Math.abs(m.left + m.width / 2 - (k.left + k.width / 2)), dy: Math.abs(m.bottom - (k.top + k.height / 2)) }
+})
+ok('"Op de kaart": naar de kaart-tab, met dat briefje in het midden', midden.dx < 30 && midden.dy < 30, JSON.stringify(midden))
+
+// 33. Samen: foto's gaan mee naar de anderen
+await L.p.click('[data-tab="bord"]')
+await L.p.waitForFunction(() => true)
+for (let i = 0; i < 40 && fotoSleutels().length < 3; i++) await L.p.waitForTimeout(250)
+ok("samen: bij het delen gaan de foto's van het bord naar de worker (één sleutel per foto)", fotoSleutels().length === 3, fotoSleutels().length)
+const T4 = await nieuwePagina()
+await T4.p.goto(koppel4)
+await T4.p.click('[data-koppel="ja"]')
+await T4.p.waitForSelector('#wie-form')
+await T4.p.fill('#wie-form [name="naam"]', 'Tara')
+await T4.p.click('#wie-form [type="submit"]')
+await dicht(T4.p)
+await T4.p.waitForSelector(`.bord-binnen .polaroid[data-foto="${fotoGras}"]:not(.leeg) img[src^="blob:"]`, { timeout: 15000 })
+ok('samen: Tara ziet de foto van Oscar (opgehaald bij de worker)', true)
+ok('samen: en bewaart hem zelf in IndexedDB', (await idbFoto(T4.p, fotoGras))?.size === (await idbFoto(L.p, fotoGras))?.size)
+await T4.ctx.setOffline(true)
+await T4.p.reload()
+await T4.p.waitForSelector('.bord-binnen.klaar')
+await T4.p.waitForSelector(`.bord-binnen .polaroid[data-foto="${fotoGras}"]:not(.leeg) img[src^="blob:"]`, { timeout: 5000 })
+ok('samen: offline blijft de foto zichtbaar (uit IndexedDB)', true)
+await T4.ctx.setOffline(false)
+await nuSync(T4.p)
+// Offline een foto toevoegen: hij wacht in de wachtrij en gaat later alsnog.
+await L.ctx.setOffline(true)
+await nieuwVel(L.p, 'Bitterballen op het terras', 'uiteten')
+await kiesFotoOp(L.p, '[data-vel="foto"]', FOTO_STAAND)
+await L.p.waitForSelector('#vel-bijlagen .polaroid:not(.leeg) img[src^="blob:"]')
+await prikNu(L.p)
+const fotoBitter = (await briefjeVan(L.p, 'Bitterballen op het terras')).v.foto.w
+await L.p.waitForTimeout(500)
+ok('offline: de foto wacht in de uploadwachtrij (IndexedDB)', (await idbWachtrij(L.p)).includes(fotoBitter) && fotoSleutels().length === 3)
+await L.p.reload()
+await L.p.waitForSelector('.bord-binnen.klaar')
+ok('offline: na herladen staat hij nog in de wachtrij', (await idbWachtrij(L.p)).includes(fotoBitter))
+await L.ctx.setOffline(false)
+await nuSync(L.p)
+for (let i = 0; i < 40 && fotoSleutels().length < 4; i++) await L.p.waitForTimeout(250)
+ok('weer online: de foto vertrekt alsnog en de wachtrij is leeg', fotoSleutels().includes(`foto:${(await syncVan(L.p)).borden[(await opslag(L.p)).bord].r}:${fotoBitter}`) && (await idbWachtrij(L.p)).length === 0)
+await nuSync(T4.p)
+await T4.p.waitForSelector(`.polaroid[data-foto="${fotoBitter}"]:not(.leeg) img[src^="blob:"]`, { timeout: 20000 })
+ok('Tara ziet de offline gemaakte foto', true)
+// Een foto die (nog) niet op de server staat: eerst een leeg polaroidje, later de foto.
+await L.ctx.route('**/foto/**', (r) => (r.request().method() === 'PUT' ? r.abort() : r.continue()))
+await nieuwVel(L.p, 'Poffertjes op de markt', 'uiteten')
+await kiesFotoOp(L.p, '[data-vel="foto"]', FOTO_STAAND)
+await L.p.waitForSelector('#vel-bijlagen .polaroid:not(.leeg) img[src^="blob:"]')
+await prikNu(L.p)
+const fotoPof = (await briefjeVan(L.p, 'Poffertjes op de markt')).v.foto.w
+await L.p.waitForTimeout(2000)
+await nuSync(T4.p)
+await T4.p.waitForSelector(`.polaroid.leeg[data-foto="${fotoPof}"]`, { timeout: 20000 })
+ok('nog niet geüpload: Tara ziet een vriendelijk leeg polaroidje', (await T4.p.locator(`.polaroid.leeg[data-foto="${fotoPof}"] img:not([src])`).count()) === 1)
+await L.ctx.unroute('**/foto/**')
+await nuSync(L.p)
+for (let i = 0; i < 40 && fotoSleutels().length < 5; i++) await L.p.waitForTimeout(250)
+await nuSync(T4.p)
+await T4.p.waitForSelector(`.polaroid[data-foto="${fotoPof}"]:not(.leeg) img[src^="blob:"]`, { timeout: 20000 })
+ok('…en zodra hij er is, verschijnt de foto alsnog', true)
+await T4.ctx.close()
+await L.ctx.close()
+w4.server.close()
+nep.terug()
+
 // 10. Service worker: registreert en de app opent offline
 ;({ ctx, p } = await nieuwePagina())
 await p.goto(URL_APP)
@@ -783,11 +1193,40 @@ ok('app opent offline uit de cache', (await p.locator('#kop-titel').innerText())
 await ctx.setOffline(false)
 // "Nu bijwerken" laat caches van andere apps staan (A1).
 await p.evaluate(() => caches.open('sportagenda-v34').then((c) => c.put('/x', new Response('tarapp'))))
+// En een foto in IndexedDB, zoals de app hem bewaart.
+await p.evaluate(
+  () =>
+    new Promise((ok) => {
+      const r = indexedDB.open('prikbord', 1)
+      r.onupgradeneeded = () => {
+        r.result.createObjectStore('fotos')
+        r.result.createObjectStore('wachtrij')
+      }
+      r.onsuccess = () => {
+        const tx = r.result.transaction('fotos', 'readwrite')
+        tx.objectStore('fotos').put({ blob: new Blob(['x'], { type: 'image/jpeg' }), t: Date.now() }, 'blijftStaan1')
+        tx.oncomplete = () => {
+          r.result.close()
+          ok()
+        }
+      }
+    }),
+)
 await p.click('[data-tab="meer"]')
 await Promise.all([p.waitForEvent('load'), p.click('[data-action="force-update"]')])
 const naUpdate = await p.evaluate(() => caches.keys())
 ok('"Nu bijwerken" laat de cache van Tarapp staan', naUpdate.includes('sportagenda-v34'), naUpdate.join(', '))
 ok('"Nu bijwerken" laat de briefjes staan', (await p.evaluate(() => !!localStorage.getItem('prikbord.v1'))))
+ok('"Nu bijwerken" laat de foto\'s in IndexedDB staan', await p.evaluate(
+  () =>
+    new Promise((ok) => {
+      const r = indexedDB.open('prikbord')
+      r.onsuccess = () => {
+        const q = r.result.transaction('fotos').objectStore('fotos').getKey('blijftStaan1')
+        q.onsuccess = () => ok(q.result === 'blijftStaan1')
+      }
+    }),
+))
 await ctx.close()
 
 await browser.close()
