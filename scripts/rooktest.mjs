@@ -7,6 +7,7 @@ import { readFile, writeFile, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { start } from './serve.mjs'
+import { startWorker } from './nep-worker.mjs'
 import { beginStaat, nieuwBriefje } from '../public/js/model.js'
 
 // De versie uit app.js, zodat het release-ritueel (APP_VERSION en CACHE
@@ -41,6 +42,14 @@ async function nieuwePagina(opties = {}) {
   return { ctx, p }
 }
 const opslag = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('prikbord.v1')))
+
+// Eerste start: "Wie ben jij?" (M3).
+async function welkom(p, naam) {
+  await p.waitForSelector('.laag[open] #welkom-form')
+  await p.fill('#welkom-form [name="naam"]', naam)
+  await p.click('#welkom-form [type="submit"]')
+  await p.waitForSelector('.laag:not([open])', { state: 'attached' })
+}
 const briefjesOpBord = (p) => p.locator('.bord-binnen .briefje-plek').count()
 
 async function prikBriefje(p, tekst, cat) {
@@ -61,6 +70,10 @@ ok('eerste start: leeg bord met uitleg', (await p.locator('.bord-leeg').count())
 ok('kop toont het bord "Thuis"', (await p.locator('#kop-titel').innerText()).includes('Thuis'))
 let s = await opslag(p)
 ok('opslag onder prikbord.v1 met één bord en 8 categorieën', s && Object.keys(s.borden).length === 1 && Object.keys(Object.values(s.borden)[0].cats).length === 8)
+ok('eerste start: "Wie ben jij?" staat open', await p.locator('.laag[open] #welkom-form').isVisible())
+await welkom(p, 'Oscar')
+s = await opslag(p)
+ok('je naam staat op de telefoon én als lid op het bord', s.apparaat.naam === 'Oscar' && Object.values(Object.values(s.borden)[0].leden)[0].naam.w === 'Oscar')
 
 // 2. Briefje prikken, blijft na herladen
 await prikBriefje(p, 'Sushi in Den Haag 🍣', 'uiteten')
@@ -80,7 +93,7 @@ ok('briefje heeft per veld een tijdstempel', typeof br.v.tekst.t === 'number' &&
 // 3. Tekst bewerken via het geopende briefje
 await eerste.locator('.briefje').click()
 await p.waitForSelector('.laag[open] .groot')
-ok('geopend briefje toont wie het prikte', (await p.locator('.groot-meta').innerText()).includes('Geprikt door Ik'))
+ok('geopend briefje toont wie het prikte', (await p.locator('.groot-meta').innerText()).includes('Geprikt door Oscar'))
 await p.click('[data-laag="bewerk"]')
 await p.fill('#vel-tekst', 'Shakshuka met feta en véél koriander')
 await p.click('.prik')
@@ -192,6 +205,7 @@ await ctx.close()
 ;({ ctx, p } = await nieuwePagina({ reducedMotion: 'reduce' }))
 await p.goto(URL_APP)
 await p.waitForSelector('.bord-leeg')
+await welkom(p, 'Rustig')
 await p.click('[data-tab="meer"]')
 await p.click('.schakelaar')
 await p.click('[data-tab="bord"]')
@@ -556,6 +570,202 @@ await p.click('#gedaan-form [type="submit"]')
 await dicht(p)
 ok('minder beweging: Gedaan werkt, zonder confetti', (await p.locator('.confetti').count()) === 0 && (await briefjesOpBord(p)) === 5)
 await ctx.close()
+
+// ---------- M3: samen ----------
+// Twee (en drie) browsers op hetzelfde bord, via de echte worker op deze
+// computer (scripts/nep-worker.mjs) met een nep-KV in het geheugen (§9).
+const WPOORT = 4321
+const WURL = `http://localhost:${WPOORT}`
+const { server: nepWorker, kv: nepKvM3 } = await startWorker(WPOORT)
+const syncVan = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('prikbord.sync')))
+const bolletje = (p) => p.getAttribute('#sync-dot', 'data-status')
+const wachtOpBolletje = (p, status, timeout = 8000) => p.waitForFunction((s) => document.querySelector('#sync-dot')?.dataset.status === s, status, { timeout })
+// Meteen synchroniseren, zoals de app doet als je weer online komt.
+const nuSync = (p) => p.evaluate(() => dispatchEvent(new Event('online')))
+const briefjeOp = (p, tekst) => p.locator('.bord-binnen .briefje-plek', { hasText: tekst })
+
+// 20. Oscar deelt zijn bord
+const A = await nieuwePagina()
+await A.p.goto(URL_APP)
+await welkom(A.p, 'Oscar')
+await prikBriefje(A.p, 'Sushi in Den Haag 🍣', 'uiteten')
+ok('M3: een bord dat niet gedeeld is, heeft geen statusbolletje', await A.p.locator('#sync-dot').isHidden())
+await A.p.click('[data-tab="meer"]')
+await A.p.click('[data-action="delen"]')
+await A.p.waitForSelector('#delen-form')
+ok('delen: "Iedereen met deze link kan meekijken en prikken"', (await A.p.locator('.laag').innerText()).includes('Iedereen met deze link kan meekijken en prikken'))
+await A.p.fill('#delen-form [name="url"]', 'http://kwaad.example')
+await A.p.click('#delen-form [type="submit"]')
+ok('delen: een adres zonder https (behalve localhost) wordt geweigerd', (await A.p.locator('#delen-fout').innerText()).includes('https'))
+await A.p.fill('#delen-form [name="url"]', WURL)
+await A.p.click('#delen-form [type="submit"]')
+await A.p.waitForSelector('#koppel-link')
+const koppelLinkM3 = await A.p.inputValue('#koppel-link')
+const bordM3 = (await opslag(A.p)).bord
+const codeM3 = (await syncVan(A.p)).borden[bordM3]?.r
+ok('delen: een koppel-link met #koppel=', /^http:\/\/localhost:4320\/#koppel=[\w-]+$/.test(koppelLinkM3), koppelLinkM3)
+ok('delen: lange, willekeurige groepscode in prikbord.sync', /^[\w-]{24}$/.test(codeM3 || ''))
+ok('delen: de groepscode staat niet in prikbord.v1 (dus niet in de back-up)', !JSON.stringify(await opslag(A.p)).includes(codeM3))
+await wachtOpBolletje(A.p, 'ok')
+ok('statusbolletje: groen na de eerste sync', (await bolletje(A.p)) === 'ok')
+ok('delen: "✅ Gesynchroniseerd om …"', (await A.p.locator('.laag [data-sync-status]').innerText()).startsWith('✅ Gesynchroniseerd om'))
+ok('worker: het bord staat in de KV onder de groepscode', nepKvM3.data.has(`bord:${codeM3}`))
+await A.p.keyboard.press('Escape')
+await dicht(A.p)
+await A.p.click('[data-tab="bord"]')
+
+// 21. Tara opent de koppel-link (haar eerste keer in de app)
+const B = await nieuwePagina()
+await B.p.goto(koppelLinkM3)
+await B.p.waitForSelector('.laag[open] #koppel-ja')
+ok("koppel-link: \"Bord 'Thuis' toevoegen?\"", (await B.p.locator('#laag-titel').innerText()).includes("Bord 'Thuis' toevoegen?"))
+ok('koppel-link: weg uit de adresbalk', (await B.p.evaluate(() => location.hash)) === '')
+await B.p.click('[data-koppel="ja"]')
+await B.p.waitForSelector('#wie-form')
+ok('wie ben jij: Oscar staat erbij, met "Dit ben ik al"', (await B.p.locator('.wie-rij').innerText()).includes('Oscar'))
+await B.p.fill('#wie-form [name="naam"]', 'Tara')
+await B.p.click('#wie-form [type="submit"]')
+await dicht(B.p)
+await B.p.waitForSelector('.bord-binnen .briefje-plek')
+ok('Tara ziet het briefje van Oscar', (await B.p.locator('.bord-binnen').innerText()).includes('Sushi in Den Haag'))
+let sB = await opslag(B.p)
+const ledenB = Object.values(sB.borden[bordM3].leden)
+ok('Tara heeft één bord: haar lege beginbord is opgeruimd', Object.keys(sB.borden).length === 1 && sB.bord === bordM3)
+ok('Tara is lid, met een andere kleur dan Oscar', ledenB.length === 2 && new Set(ledenB.map((l) => l.kleur.w)).size === 2 && sB.apparaat.naam === 'Tara')
+await wachtOpBolletje(B.p, 'ok')
+
+// 22. Een briefje van Tara verschijnt bij Oscar (gewoon peilen, elke 10 s)
+await prikBriefje(B.p, 'Appeltaart van oma', 'recepten')
+const t22 = Date.now()
+await A.p.waitForSelector('.bord-binnen .briefje-plek:has-text("Appeltaart")', { timeout: 15000 })
+ok('Oscar ziet het briefje van Tara binnen 15 s, zonder iets te doen', true, `${Date.now() - t22} ms`)
+await A.p.waitForTimeout(300)
+ok("melding: \"📌 Tara prikte 'Appeltaart van oma'\"", (await A.p.locator('#toast').innerText()).includes("Tara prikte 'Appeltaart van oma'"))
+const kleurTara = ledenB.find((l) => l.naam.w === 'Tara').kleur.w
+ok('nieuw-stickertje op het briefje van Tara, niet op je eigen', (await briefjeOp(A.p, 'Appeltaart').locator('.nieuw-sticker').count()) === 1 && (await briefjeOp(A.p, 'Sushi').locator('.nieuw-sticker').count()) === 0)
+ok("de punaise heeft Tara's kleur", (await briefjeOp(A.p, 'Appeltaart').locator('.punaise').getAttribute('class')).includes(`pin-${kleurTara}`))
+await briefjeOp(A.p, 'Appeltaart').locator('.briefje').click()
+await rustig(A.p)
+ok('geopend: "Geprikt door Tara"', (await A.p.locator('.groot-meta').innerText()).includes('Geprikt door Tara'))
+await A.p.keyboard.press('Escape')
+await dicht(A.p)
+ok('na het openen is het stickertje weg', (await briefjeOp(A.p, 'Appeltaart').locator('.nieuw-sticker').count()) === 0)
+
+// 23. Hartjes van allebei, en tegelijk tekst en hartje op hetzelfde briefje
+await briefjeOp(A.p, 'Appeltaart').locator('.briefje').dblclick()
+await briefjeOp(B.p, 'Appeltaart').locator('.briefje').dblclick()
+await briefjeOp(A.p, 'Sushi').locator('.briefje').click()
+await rustig(A.p)
+await A.p.click('[data-laag="bewerk"]')
+await A.p.fill('#vel-tekst', 'Sushi in Den Haag, bij Okura')
+await A.p.click('.prik')
+await dicht(A.p)
+await briefjeOp(B.p, 'Sushi').locator('.briefje').dblclick()
+await A.p.waitForTimeout(2500) // 1,5 s bundelen, dan versturen
+await nuSync(A.p)
+await nuSync(B.p)
+await A.p.waitForTimeout(1500)
+await nuSync(A.p)
+await A.p.waitForTimeout(1000)
+const bA = (await opslag(A.p)).borden[bordM3]
+sB = await opslag(B.p)
+const bB = sB.borden[bordM3]
+const appelId = Object.values(bA.briefjes).find((b) => b.v?.tekst?.w === 'Appeltaart van oma').id
+const sushiId = Object.values(bA.briefjes).find((b) => b.v?.tekst?.w.startsWith('Sushi')).id
+ok('hartjes: Appeltaart heeft bij allebei 2 hartjes', [bA, bB].every((b) => Object.values(b.briefjes[appelId].hart).filter((h) => h.w).length === 2))
+ok('per veld: Oscars nieuwe tekst én Tara\'s hartje staan allebei op Sushi, bij allebei', [bA, bB].every((b) => b.briefjes[sushiId].v.tekst.w === 'Sushi in Den Haag, bij Okura' && Object.values(b.briefjes[sushiId].hart).filter((h) => h.w).length === 1))
+ok('Oscar en Tara hebben exact dezelfde stand', JSON.stringify(bA) === JSON.stringify(bB))
+await A.p.click('[data-filter="samen"]')
+await A.p.waitForTimeout(400)
+ok('💞 Iedereen zin: alleen het briefje met hartjes van Oscar én Tara', (await A.p.locator('.bord-binnen .briefje-plek:not(.uit)').count()) === 1 && (await A.p.locator('.bord-binnen .briefje-plek:not(.uit)').innerText()).includes('Appeltaart'))
+await A.p.click('[data-filter="alles"]')
+
+// 24. Offline geprikt gaat mee zodra je weer online bent
+await B.ctx.setOffline(true)
+await prikBriefje(B.p, 'In de trein bedacht 🚆', 'todo')
+await wachtOpBolletje(B.p, 'offline')
+ok('offline: het bolletje wordt grijs', (await bolletje(B.p)) === 'offline')
+await B.p.click('#kop-titel')
+await B.p.waitForSelector('.laag[data-soort="borden"]')
+ok('offline: "wijzigingen gaan mee zodra het weer lukt"', (await B.p.locator('.laag [data-sync-status]').innerText()).includes('gaan mee zodra het weer lukt'))
+await B.p.keyboard.press('Escape')
+await dicht(B.p)
+await nuSync(A.p)
+await A.p.waitForTimeout(1200)
+ok('offline: Oscar heeft het nog niet', (await briefjeOp(A.p, 'In de trein').count()) === 0)
+await B.ctx.setOffline(false)
+await nuSync(B.p)
+await A.p.waitForSelector('.bord-binnen .briefje-plek:has-text("In de trein")', { timeout: 15000 })
+ok('weer online: het offline geprikte briefje komt bij Oscar aan', true)
+await wachtOpBolletje(B.p, 'ok')
+ok('weer online: het bolletje is weer groen', (await bolletje(B.p)) === 'ok')
+
+// 25. Een tablet: koppel-link plakken en "Dit ben ik al"
+const C = await nieuwePagina()
+await C.p.goto(URL_APP)
+await welkom(C.p, 'Oscar')
+await C.p.click('#kop-titel')
+await C.p.waitForSelector('.laag[data-soort="borden"]')
+await C.p.click('[data-borden="koppel"]')
+await C.p.fill('#koppel-form [name="link"]', 'Doe je mee? https://example.com/geen-koppel')
+await C.p.click('#koppel-form [type="submit"]')
+ok('plakken: geen koppel-link → een vriendelijke fout', (await C.p.locator('#koppel-fout').innerText()).includes('geen koppel-link'))
+await C.p.fill('#koppel-form [name="link"]', `Doe je mee op ons prikbord? ${koppelLinkM3} 😄`)
+await C.p.click('#koppel-form [type="submit"]')
+await C.p.waitForSelector('#koppel-ja')
+await C.p.click('[data-koppel="ja"]')
+await C.p.waitForSelector('#wie-form')
+await C.p.locator('.wie-rij', { hasText: 'Oscar' }).click()
+await dicht(C.p)
+await C.p.waitForSelector('.bord-binnen .briefje-plek:has-text("Appeltaart")')
+const sC = await opslag(C.p)
+ok('Dit ben ik al: de tablet is hetzelfde lid als Oscars telefoon', sC.apparaat.ik[bordM3] === (await opslag(A.p)).apparaat.ik[bordM3])
+ok('Dit ben ik al: er komt geen derde lid bij', Object.keys(sC.borden[bordM3].leden).length === 2)
+await briefjeOp(C.p, 'Appeltaart').locator('.briefje').dblclick()
+await C.p.waitForTimeout(400)
+ok('hartjes tellen niet dubbel (nog steeds 2)', (await briefjeOp(C.p, 'Appeltaart').locator('.hartjes .hart').count()) === 2)
+await C.ctx.close()
+
+// 26. Meer borden: een nieuw bord en terug wisselen
+await A.p.click('#kop-titel')
+await A.p.waitForSelector('.laag[data-soort="borden"]')
+ok('alle borden: "Thuis", samen met Tara', (await A.p.locator('.bord-rij').innerText()).includes('Samen met Tara'))
+await A.p.click('[data-borden="nieuw"]')
+await A.p.fill('#bord-nieuw-form [name="naam"]', 'Groepsreis Porto')
+await A.p.click('#bord-nieuw-form [data-emoji="✈️"]')
+await A.p.click('#bord-nieuw-form [type="submit"]')
+await A.p.waitForSelector('.bord-leeg')
+ok('nieuw bord: leeg, met de naam en emoji bovenin', (await A.p.locator('#kop-titel').innerText()).includes('Groepsreis Porto') && (await A.p.locator('#kop-titel').innerText()).includes('✈️'))
+ok('nieuw bord: niet gedeeld, dus geen bolletje', await A.p.locator('#sync-dot').isHidden())
+let sA = await opslag(A.p)
+ok('nieuw bord: jij staat erop als Oscar', Object.values(sA.borden[sA.bord].leden).map((l) => l.naam.w).join() === 'Oscar')
+await A.p.click('#kop-titel')
+await A.p.locator('.bord-rij', { hasText: 'Thuis' }).click()
+await A.p.waitForSelector('.bord-binnen .briefje-plek')
+ok('terug naar Thuis: alle briefjes zijn er nog', (await briefjesOpBord(A.p)) === 3)
+
+// 27. Tara verlaat het bord; Oscar houdt alles
+await B.p.click('[data-tab="meer"]')
+await B.p.click('[data-action="bord-instel"]')
+await B.p.click('[data-borden="verlaat"]')
+await B.p.waitForSelector('.bord-leeg')
+sB = await opslag(B.p)
+ok('verlaten: Tara heeft weer een eigen, leeg bord', !sB.borden[bordM3] && Object.keys(sB.borden).length === 1)
+ok('verlaten: de koppeling is weg van haar telefoon', !(await syncVan(B.p)).borden[bordM3])
+await nuSync(A.p)
+await A.p.waitForTimeout(1000)
+sA = await opslag(A.p)
+ok('verlaten: Oscar houdt alle briefjes, en Tara blijft als lid bestaan', (await briefjesOpBord(A.p)) === 3 && Object.keys(sA.borden[bordM3].leden).length === 2)
+await A.ctx.close()
+await B.ctx.close()
+
+// 28. Een kapotte koppel-link
+const D = await nieuwePagina()
+await D.p.goto(`${URL_APP}#koppel=kapot`)
+await D.p.waitForTimeout(400)
+ok('kapotte koppel-link: een vriendelijke melding, verder niets', (await D.p.locator('#toast').innerText()).includes('kapot') && (await D.p.locator('#koppel-ja').count()) === 0)
+await D.ctx.close()
+nepWorker.close()
 
 // 10. Service worker: registreert en de app opent offline
 ;({ ctx, p } = await nieuwePagina())

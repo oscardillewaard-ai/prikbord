@@ -3,11 +3,11 @@
 // Foto's komen later in IndexedDB (M4), niet hier: alle apps op dit domein
 // delen één localStorage van een paar MB.
 
-import { schoonStaat } from './validate.js'
+import { schoonStaat, schoonSync } from './validate.js'
 import { beginStaat } from './model.js'
 
 export const KEY = 'prikbord.v1'
-// Groepscodes en het worker-adres (M3) staan apart, buiten de back-up (regel 11).
+// Groepscodes en het worker-adres staan apart, buiten de back-up (regel 11).
 export const SYNC_KEY = 'prikbord.sync'
 
 // Inlezen, controleren en netjes maken. Kapotte opslag: met een vers bord
@@ -64,4 +64,22 @@ export function bewaarStraks(staat, opFout, ms = 400) {
 // achtergrond gaat; iOS kan hem daarna zonder waarschuwing afsluiten).
 export function bewaarNu(staat, opFout) {
   if (wachtend) bewaar(staat, opFout)
+}
+
+// De koppelingen (M3): groepscode en adres per gedeeld bord.
+export function laadSync() {
+  try {
+    return schoonSync(JSON.parse(localStorage.getItem(SYNC_KEY)))
+  } catch {
+    return schoonSync(null)
+  }
+}
+
+export function bewaarSync(sync) {
+  try {
+    localStorage.setItem(SYNC_KEY, JSON.stringify(sync))
+    return true
+  } catch {
+    return false
+  }
 }

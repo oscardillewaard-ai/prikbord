@@ -5,19 +5,24 @@
 // worden. De vingers in de vrij-modus staan in vrij.js, de animaties in
 // beweging.js.
 
-import { waarde, zetVeld, zetHart, hartjesVan, nieuwBriefje, verwijder, categorieen, catVan, lidVan, opHetBord, maakId, zetCat, nieuweCat, verschuifCat, catGebruikt } from './model.js'
-import { schoonStaat, MAX_TEKST, MAX_NOTITIE, PAPIER, CAT_SCHOON } from './validate.js'
-import { importeer } from './merge.js'
+import { waarde, zetVeld, zetHart, hartjesVan, nieuwBriefje, verwijder, categorieen, catVan, lidVan, opHetBord, maakId, zetCat, nieuweCat, verschuifCat, catGebruikt, nieuwBord, voegLidToe, zetLid, zetInfo, ledenVan, beginStaat, GEEN_NAAM } from './model.js'
+import { schoonStaat, MAX_TEKST, MAX_NOTITIE, PAPIER, PUNAISE, CAT_SCHOON, LID_SCHOON, INFO_SCHOON, schoonAdres } from './validate.js'
+import { importeer, mergeBord } from './merge.js'
+import { maakSync, haalBord, maakKoppel, leesKoppel, nieuweCode, peilInterval, BUNDEL_MS, BUNDEL_MAX_MS } from './sync.js'
 import { legNetjes, kolomBreedte, legVrij, VRIJ } from './layout.js'
 import { ALLES, isAlles, wisselCat, past, sorteer, trek, inDeDoos, perMaand } from './filter.js'
 import { uiterlijk } from './seed.js'
-import { laad, bewaar, bewaarStraks, bewaarNu } from './store.js'
+import { laad, bewaar, bewaarStraks, bewaarNu, laadSync, bewaarSync } from './store.js'
 import { zetRanden } from './randen.js'
 import { minderBeweging, scheurAf, vliegNaar, prikIn, wiebelBuren, vanBord, terugNaarBord, valWeg, vervaagLaag, hartPop, schudLos, valInDoos, confetti, stuiter, popIn } from './beweging.js'
 import { maakVrij } from './vrij.js'
 import { rrrits, tok, plop } from './geluid.js'
 
 export const APP_VERSION = '3' // ophogen bij elke release, samen met CACHE in sw.js
+
+// Adres van de sync-worker (proxy/prikbord-sync-worker.js). Leeg = je vult het
+// zelf in bij "Bord delen". Ingevuld = alleen nog "Maak een koppel-link".
+const DEFAULT_SYNC_URL = ''
 
 // ---------- Wat is er nieuw ----------
 // Nieuwste bovenaan. Bij een release: APP_VERSION ophogen, CACHE in sw.js
@@ -63,7 +68,18 @@ const CHANGELOG = [
 const opgestart = laad()
 let staat = opgestart.staat
 const opslagFout = () => toast('⚠️ Opslaan lukt niet: de opslag is vol of geblokkeerd. Maak een back-up via Meer!', { ms: 6000 })
-const opslaan = () => bewaar(staat, opslagFout)
+// Gedeelde borden: groepscode en adres per bord, onder prikbord.sync (buiten de back-up).
+const koppelingen = laadSync()
+const gedeeld = (id = staat.bord) => !!koppelingen.borden[id]
+const laatsteActiviteit = {} // per bord: wanneer er iets gebeurde (voor het peilen)
+// Opslaan na een handeling. Op een gedeeld bord vertrekt de wijziging na
+// 1,5 s bundelen naar de anderen (§6.3).
+const opslaan = () => {
+  const gelukt = bewaar(staat, opslagFout)
+  laatsteActiviteit[staat.bord] = Date.now()
+  if (Object.keys(koppelingen.borden).length) syncStraks()
+  return gelukt
+}
 
 const bord = () => staat.borden[staat.bord]
 const ikId = () => staat.apparaat.ik[staat.bord]
@@ -119,6 +135,12 @@ const ui = {
   tik: null, // { id, timer }: wachten of er een tweede tik komt (hartje)
   camera: {}, // vrij: per bord { s, tx, ty }
   wereldH: 0, // vrij: hoogte van het bord in px bij zoom 1
+  getoond: new Set(), // briefjes die met een nieuw-stickertje in beeld waren (M3)
+  koppel: null, // de koppel-link die je aan het toevoegen bent: { u, r, n, link, server }
+  syncKlaar: false, // de eerste ronde na het openen is klaar (daarna live meldingen)
+  naWelkom: null, // wat er na "Wie ben jij?" moet gebeuren ('delen')
+  toastTot: 0, // tot wanneer een melding met "Ongedaan maken" staat
+  grootVan: '', // het briefje dat groot open ligt, als JSON (de sync tekent het opnieuw als het verandert)
 }
 let vrijApi = null
 
@@ -140,6 +162,8 @@ function toast(tekst, { actie, opActie, ms = 2600 } = {}) {
   })
   clearTimeout(toastTimer)
   toastTimer = setTimeout(verbergToast, ms)
+  // Een melding met "Ongedaan maken" niet wegdrukken met een melding van de sync.
+  if (actie) ui.toastTot = Date.now() + ms
 }
 function verbergToast() {
   const el = $('#toast')
@@ -276,18 +300,27 @@ function zorgDatHetZichtbaarIs(b) {
 // briefjes blijven staan en schuiven naar hun nieuwe plek (het bord "schudt",
 // §5.2). Alleen nieuwe briefjes komen erbij, weggehaalde verdwijnen.
 
-function briefjeBinnen(b) {
+// Briefjes van anderen die deze telefoon nog niet zag (per bord, §5.1).
+const nieuwHier = (id = staat.bord) => new Set(staat.apparaat.nieuw[id] || [])
+function aantalNieuw(id) {
+  const bd = staat.borden[id]
+  return [...nieuwHier(id)].filter((b) => bd?.briefjes[b] && !bd.briefjes[b].weg && !waarde(bd.briefjes[b].v, 'gedaan')).length
+}
+
+function briefjeBinnen(b, nieuw = false) {
   const bd = bord()
   const cat = catVan(bd, waarde(b.v, 'cat'))
   const lid = lidVan(bd, b.door)
   const u = uiterlijk(b.id)
+  // Het stickertje staat op de wrapper, niet op het papier: clip-path zou het afknippen.
   return `
       <button type="button" class="briefje papier-${cat.kleur} rand-${u.rand}" data-action="open" data-id="${b.id}">
-        <span class="vh">${esc(cat.naam)}: </span><span class="tekst">${esc(waarde(b.v, 'tekst', ''))}</span>
+        <span class="vh">${nieuw ? 'Nieuw, ' : ''}${esc(cat.naam)}: </span><span class="tekst">${esc(waarde(b.v, 'tekst', ''))}</span>
         ${hartjesHtml(bd, b)}
         <span class="briefje-voet" aria-hidden="true">${cat.emoji}</span>
       </button>
-      <span class="punaise pin-${lid.kleur}" style="--pd:${u.punaiseDraai}deg" aria-hidden="true"></span>`
+      <span class="punaise pin-${lid.kleur}" style="--pd:${u.punaiseDraai}deg" aria-hidden="true"></span>
+      ${nieuw ? '<span class="nieuw-sticker" aria-hidden="true">nieuw</span>' : ''}`
 }
 
 function bordSkelet(scherm) {
@@ -350,6 +383,7 @@ function tekenBord(vol = false) {
 // Briefjes toevoegen, bijwerken en weghalen op basis van hun id.
 function vulBak(bak, lijst) {
   const bestaand = new Map([...bak.children].map((el) => [el.dataset.id, el]))
+  const nieuw = nieuwHier()
   let vorige = null
   for (const b of lijst) {
     let el = bestaand.get(b.id)
@@ -362,7 +396,9 @@ function vulBak(bak, lijst) {
       // Meteen op zijn plek in de volgorde (tabvolgorde, schermlezers).
       bak.insertBefore(el, vorige ? vorige.nextSibling : bak.firstChild)
     }
-    const binnen = briefjeBinnen(b)
+    const isNieuw = nieuw.has(b.id)
+    if (isNieuw) ui.getoond.add(b.id)
+    const binnen = briefjeBinnen(b, isNieuw)
     if (el.binnen !== binnen) {
       el.innerHTML = binnen
       el.binnen = binnen
@@ -713,12 +749,33 @@ function renderMeer() {
 
       <h3 class="groep-kop">Dit bord</h3>
       <div class="groep">
-        <div class="rij"><span class="rij-icoon" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
-          <span class="rij-tekst"><strong>${esc(waarde(bd.info, 'naam', 'Prikbord'))}</strong>
-          <span class="klein">Meer borden en samen prikken met vrienden komen in een volgende versie 🤝</span></span></div>
+        <button type="button" class="rij" data-action="bord-instel">
+          <span class="rij-icoon" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
+          <span class="rij-tekst"><strong>${esc(waarde(bd.info, 'naam', 'Prikbord'))}</strong><span class="klein">Naam en emoji, of het bord verlaten</span></span>
+          <span class="rij-pijl" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="rij" data-action="delen">
+          <span class="rij-icoon" aria-hidden="true">🤝</span>
+          <span class="rij-tekst"><strong>Samen prikken</strong><span class="klein">${gedeeld() ? `<span data-sync-status>${esc(statusTekst())}</span><br>${esc(metWie(bd))}` : 'Alleen op deze telefoon. Deel dit bord met een koppel-link'}</span></span>
+          <span class="rij-pijl" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="rij" data-action="ik">
+          <span class="rij-icoon" aria-hidden="true"><span class="pin-bol pin-${lidVan(bd, ikId()).kleur}"></span></span>
+          <span class="rij-tekst"><strong>Wie ben ik</strong><span class="klein">Je bent ${esc(lidVan(bd, ikId()).naam)} op dit bord · naam en kleur</span></span>
+          <span class="rij-pijl" aria-hidden="true">›</span>
+        </button>
         <button type="button" class="rij" data-action="cats">
           <span class="rij-icoon" aria-hidden="true">🏷️</span>
           <span class="rij-tekst"><strong>Categorieën</strong><span class="klein">${meervoud(nCats, 'categorie', 'categorieën')} · namen, emoji, kleuren en volgorde</span></span>
+          <span class="rij-pijl" aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <h3 class="groep-kop">Borden</h3>
+      <div class="groep">
+        <button type="button" class="rij" data-action="borden">
+          <span class="rij-icoon" aria-hidden="true">📋</span>
+          <span class="rij-tekst"><strong>Alle borden</strong><span class="klein">${meervoud(Object.keys(staat.borden).length, 'bord', 'borden')} · wisselen, nieuw bord of een koppel-link</span></span>
           <span class="rij-pijl" aria-hidden="true">›</span>
         </button>
       </div>
@@ -777,9 +834,21 @@ function kopRechts() {
     </div>`
 }
 
-function render(vol = false) {
+// Bovenin: emoji en naam van het bord (tik = alle borden), het statusbolletje
+// en een tellertje als er op een ander bord iets nieuws hangt.
+function tekenKop() {
   const bd = bord()
-  $('#kop-titel').innerHTML = `<span class="kop-emoji" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span> ${esc(waarde(bd.info, 'naam', 'Prikbord'))}`
+  const elders = Object.keys(staat.borden).filter((id) => id !== staat.bord).reduce((n, id) => n + aantalNieuw(id), 0)
+  $('#kop-titel').innerHTML = `<span class="kop-emoji" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
+    <span class="kop-naam">${esc(waarde(bd.info, 'naam', 'Prikbord'))}</span><span class="kop-pijl" aria-hidden="true">▾</span>
+    <span class="sync-dot" id="sync-dot" hidden><span class="vh" data-sync-status></span></span>
+    ${elders ? `<span class="kop-nieuw" title="Nieuw op je andere borden">${elders}<span class="vh"> nieuw op je andere borden</span></span>` : ''}
+    <span class="vh">, alle borden</span>`
+  tekenStatus()
+}
+
+function render(vol = false) {
+  tekenKop()
   $('#kop-rechts').innerHTML = kopRechts()
   document.body.dataset.tab = ui.tab
   for (const b of document.querySelectorAll('.tabbar [data-tab]')) {
@@ -867,8 +936,9 @@ laag.addEventListener('close', () => {
   }
   laag.dataset.soort = ''
   laag.innerHTML = ''
-  // Categorieën aangepast: chips, kleuren en het blokje opnieuw.
-  if (soort === 'cats' || soort === 'cat') render(true)
+  if (soort === 'koppel-ja' || soort === 'wie') ui.koppel = null
+  // Categorieën, namen, kleuren of borden aangepast: alles opnieuw tekenen.
+  if (['cats', 'cat', 'ik', 'bord', 'welkom', 'delen'].includes(soort)) render(true)
 })
 
 // Esc (en de terugknop op Android) sluit met dezelfde beweging.
@@ -879,7 +949,7 @@ laag.addEventListener('cancel', (e) => {
 
 // Tik naast het briefje sluit het. Niet bij het schrijfvel en de formulieren:
 // dan ben je te snel iets kwijt als je net naast het papier tikt.
-const RUSTIG_SLUITEN = ['open', 'trek', 'doos', 'nieuws']
+const RUSTIG_SLUITEN = ['open', 'trek', 'doos', 'nieuws', 'borden']
 laag.addEventListener('click', (e) => {
   if (!RUSTIG_SLUITEN.includes(laag.dataset.soort)) return
   if (e.target === laag || e.target.classList.contains('laag-achter') || e.target.matches('.groot, .nieuws')) sluitLaag()
@@ -919,6 +989,7 @@ function grootHtml(b, soort) {
   const u = uiterlijk(b.id)
   const g = waarde(b.v, 'gedaan')
   const inDoos = soort === 'doos'
+  ui.grootVan = JSON.stringify(b) // past de sync het briefje aan, dan opnieuw tekenen
   return `
     <div class="groot" data-id="${b.id}" data-soort="${soort}">
       ${soort === 'trek' ? '<p class="trek-kop laag-extra">🎲 Het lot heeft gesproken!</p>' : ''}
@@ -947,6 +1018,7 @@ function grootHtml(b, soort) {
 function openBriefje(id, soort = 'open') {
   const b = bord().briefjes[id]
   if (!b || b.weg || laag.open) return
+  zagHet(id)
   const plek = view.querySelector(`.briefje-plek[data-id="${id}"]`)
   openLaag(grootHtml(b, soort), soort)
   ui.open = id
@@ -1293,6 +1365,8 @@ laag.addEventListener('submit', (e) => {
     else gooiInDoos(e.target.dataset.id, gedaan)
   }
   if (e.target.id === 'cat-form') bewaarCat(e.target)
+  const formulieren = { 'welkom-form': bewaarWelkom, 'bord-nieuw-form': maakNieuwBord, 'koppel-form': leesGeplakt, 'wie-form': nieuwLid, 'delen-form': startDelen, 'ik-form': bewaarIk, 'bord-form': bewaarBordInstel }
+  formulieren[e.target.id]?.(e.target)
 })
 
 laag.addEventListener('click', (e) => {
@@ -1307,6 +1381,8 @@ laag.addEventListener('click', (e) => {
   }
   const catKnop = e.target.closest('[data-cats], [data-emoji]')
   if (catKnop) return catActie(catKnop)
+  const samenKnop = e.target.closest('[data-borden], [data-koppel], [data-wie], [data-delen]')
+  if (samenKnop) return samenActie(samenKnop)
   const knop = e.target.closest('[data-laag]')
   if (!knop) return
   const id = laag.querySelector('.groot')?.dataset.id
@@ -1329,6 +1405,28 @@ laag.addEventListener('click', (e) => {
   }
   doe[knop.dataset.laag]?.()
 })
+
+// Knoppen in de panelen van M3 (borden, koppelen, wie ben jij, delen).
+function samenActie(knop) {
+  const d = knop.dataset
+  if (d.borden === 'kies') return wisselBord(d.bord)
+  if (d.borden === 'nieuw') return openNieuwBord()
+  if (d.borden === 'koppel') return openKoppelPlak()
+  if (d.borden === 'lijst') return openBorden()
+  if (d.borden === 'verlaat') return verlaatBord()
+  if (d.koppel === 'ja') return haalEnKoppel()
+  if (d.koppel === 'kopieer') return kopieerKoppel()
+  if (d.koppel === 'nee') {
+    ui.koppel = null
+    return sluitLaag()
+  }
+  if (d.wie) return voltooiKoppel(d.wie)
+  if (d.delen === 'deel') return deelLink()
+  if (d.delen === 'nu') {
+    laatsteActiviteit[staat.bord] = Date.now()
+    motor.ronde(staat.bord).then(plannPeil)
+  }
+}
 
 // ---------- Categorie-editor (§5.6) ----------
 // Per bord: toevoegen, hernoemen, emoji, kleur, volgorde en verbergen.
@@ -1464,9 +1562,10 @@ function catActie(knop) {
   const bd = bord()
   const id = knop.dataset.cat
   if (knop.dataset.emoji) {
-    const form = $('#cat-form')
+    const form = knop.closest('form')
     form.emoji.value = knop.dataset.emoji
-    return werkCatVoorbeeldBij(form)
+    if (form.id === 'cat-form') werkCatVoorbeeldBij(form)
+    return
   }
   const actie = knop.dataset.cats
   if (actie === 'bewerk') return openCatBewerk(id)
@@ -1489,6 +1588,777 @@ function catActie(knop) {
     openCats()
     return toast('👀 Hij doet weer mee!')
   }
+}
+
+// ---------- Samen: sync, borden, koppelen en leden (M3) ----------
+// Het rekenwerk staat in sync.js (de motor) en de worker; hier zit het scherm
+// eromheen: het statusbolletje, peilen, meldingen, en de panelen voor borden,
+// delen, koppelen en "wie ben jij".
+
+const syncStatus = {} // per bord: { status, fout, om, sinds, vorige }
+const tijdje = (t) => new Date(t).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+const mijnNaam = () => staat.apparaat.naam || GEEN_NAAM
+// Safari op de iPhone, niet als app op het beginscherm: die twee bewaren hun
+// briefjes apart (uit mijn kennis van iOS, niet getest op een toestel).
+const IOS_SAFARI = 'standalone' in navigator && !navigator.standalone
+
+// Niet eindeloos wachten op een sync-server die niet antwoordt. En op weg
+// naar de achtergrond de laatste wijziging nog meegeven (keepalive kan tot
+// 64 KB). Lukt dat niet, dan blijft hij in het verschil staan.
+function syncFetch(url, init = {}) {
+  const extra = {}
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) extra.signal = AbortSignal.timeout(20_000)
+  if (document.visibilityState === 'hidden' && (init.body?.length || 0) < 60_000) extra.keepalive = true
+  return fetch(url, { ...init, ...extra })
+}
+
+const motor = maakSync({
+  fetch: syncFetch,
+  lees: (id) => staat.borden[id],
+  schrijf: naSync,
+  adres: (id) => koppelingen.borden[id] || null,
+  online: () => navigator.onLine !== false,
+  opStatus: zetStatus,
+})
+
+// Het bolletje springt pas op "bezig" als een ronde langer dan een halve
+// seconde duurt; anders knippert het bij elke peiling.
+let bezigTimer = 0
+function zetStatus(id, { status, fout = '' }) {
+  const vorig = syncStatus[id] || {}
+  const vorige = status === 'bezig' ? (vorig.status === 'bezig' ? vorig.vorige : vorig.status) : null
+  syncStatus[id] = { status, fout, om: status === 'ok' ? Date.now() : vorig.om, sinds: Date.now(), vorige }
+  if (id !== staat.bord) return
+  tekenStatus()
+  clearTimeout(bezigTimer)
+  if (status === 'bezig') bezigTimer = setTimeout(tekenStatus, 600)
+}
+function getoondeStatus(id) {
+  const s = syncStatus[id]
+  if (!s) return 'bezig'
+  if (s.status === 'bezig' && s.vorige && Date.now() - s.sinds < 500) return s.vorige
+  return s.status
+}
+function statusTekst(id = staat.bord) {
+  if (!gedeeld(id)) return 'Alleen op deze telefoon'
+  const s = syncStatus[id] || {}
+  const st = getoondeStatus(id)
+  if (st === 'offline') return '📵 Offline: je wijzigingen gaan mee zodra het weer lukt'
+  if (st === 'fout') return `⚠️ ${s.fout}. Je wijzigingen gaan mee zodra het weer lukt.`
+  if (st === 'ok' && s.om) return `✅ Gesynchroniseerd om ${tijdje(s.om)}`
+  return '⏳ Bezig met synchroniseren…'
+}
+function tekenStatus() {
+  const dot = $('#sync-dot')
+  if (dot) {
+    dot.hidden = !gedeeld()
+    dot.dataset.status = getoondeStatus(staat.bord)
+    dot.title = statusTekst()
+  }
+  for (const el of document.querySelectorAll('[data-sync-status]')) el.textContent = statusTekst()
+}
+
+// Iets van de anderen binnengekomen (de motor voegde het al samen).
+function naSync(id, samen, oud) {
+  if (!staat.borden[id]) return
+  staat.borden[id] = samen
+  laatsteActiviteit[id] = Date.now()
+  const ik = staat.apparaat.ik[id]
+  const binnen = Object.values(samen.briefjes).filter((b) => !oud.briefjes[b.id] && !b.weg && !waarde(b.v, 'gedaan') && b.door !== ik)
+  if (binnen.length) staat.apparaat.nieuw[id] = [...new Set([...(staat.apparaat.nieuw[id] || []), ...binnen.map((b) => b.id)])].slice(-500)
+  // Gewoon bewaren, zonder nieuwe sync: dit kwam juist van de server.
+  bewaar(staat, opslagFout)
+  if (id !== staat.bord) return tekenKop()
+  if (binnen.length && ui.syncKlaar && document.visibilityState === 'visible') meldBinnen(samen, binnen)
+  tekenNaSync()
+}
+
+// Een melding pas als de vorige met "Ongedaan maken" weg is.
+function meldLater(tekst) {
+  setTimeout(() => toast(tekst, { ms: 3500 }), Math.max(0, (ui.toastTot || 0) - Date.now()))
+}
+function meldBinnen(bd, lijst) {
+  const namen = [...new Set(lijst.map((b) => lidVan(bd, b.door).naam))]
+  const tekst = waarde(lijst[0].v, 'tekst', '')
+  const kort = tekst.length > 40 ? `${tekst.slice(0, 38)}…` : tekst
+  if (lijst.length === 1) meldLater(`📌 ${namen[0]} prikte '${kort}'`)
+  else if (namen.length === 1) meldLater(`📌 ${namen[0]} prikte ${lijst.length} briefjes`)
+  else meldLater(`📌 ${lijst.length} nieuwe briefjes`)
+}
+
+// Het bord bijwerken, maar niet midden in een animatie of sleepbeweging.
+let naSyncLater = 0
+function tekenNaSync() {
+  clearTimeout(naSyncLater)
+  if (ui.bezig || vrijApi?.bezig()) {
+    naSyncLater = setTimeout(tekenNaSync, 400)
+    return
+  }
+  const soort = laag.open ? laag.dataset.soort : ''
+  if (['open', 'trek', 'doos'].includes(soort)) {
+    const id = laag.querySelector('.groot')?.dataset.id
+    const b = id && bord().briefjes[id]
+    if (!b || b.weg) {
+      sluitDirect()
+      meldLater('🗑️ Dit briefje is net door een ander weggehaald')
+    } else if (JSON.stringify(b) !== ui.grootVan) wisselGroot(soort)
+  }
+  render()
+}
+
+// Wijzigingen 1,5 s bundelen (max. 6 s), zodat een reeks hartjes of een
+// sleepbeweging één schrijfactie wordt. Dan alle gedeelde borden met iets
+// nieuws versturen (ook een bord waar je net vandaan kwam).
+let bundel = null
+function syncStraks() {
+  const nu = Date.now()
+  if (!bundel) bundel = { sinds: nu, timer: 0 }
+  clearTimeout(bundel.timer)
+  bundel.timer = setTimeout(stuurGewijzigd, Math.max(0, Math.min(bundel.sinds + BUNDEL_MAX_MS, nu + BUNDEL_MS) - nu))
+}
+function stuurGewijzigd() {
+  if (bundel) clearTimeout(bundel.timer)
+  bundel = null
+  for (const id of Object.keys(koppelingen.borden)) if (staat.borden[id] && motor.heeftIets(id)) motor.ronde(id)
+}
+
+// Peilen: alleen het actieve bord, alleen als de app in beeld is. Elke 10 s
+// als er de laatste 5 minuten iets gebeurde, anders elke 30 s.
+let peilTimer = 0
+function plannPeil() {
+  clearTimeout(peilTimer)
+  if (!gedeeld() || document.visibilityState !== 'visible') return
+  peilTimer = setTimeout(async () => {
+    await motor.ronde(staat.bord)
+    plannPeil()
+  }, peilInterval(Date.now(), laatsteActiviteit[staat.bord] || 0))
+}
+
+// Bij het openen van de app: één keer alle gedeelde borden (het actieve
+// eerst), voor de stand en het "nieuw"-tellertje.
+async function startSync() {
+  const ids = Object.keys(koppelingen.borden)
+    .filter((id) => staat.borden[id])
+    .sort((a, b) => (b === staat.bord) - (a === staat.bord))
+  for (const id of ids) await motor.ronde(id)
+  ui.syncKlaar = true
+  const n = aantalNieuw(staat.bord)
+  if (n && document.visibilityState === 'visible') meldLater(`📌 ${meervoud(n, 'nieuw briefje', 'nieuwe briefjes')} sinds je vorige bezoek`)
+  plannPeil()
+}
+
+// Een briefje openen = gezien: het stickertje gaat eraf.
+function zagHet(id) {
+  const lijst = staat.apparaat.nieuw[staat.bord]
+  if (!lijst?.includes(id)) return
+  const over = lijst.filter((x) => x !== id)
+  if (over.length) staat.apparaat.nieuw[staat.bord] = over
+  else delete staat.apparaat.nieuw[staat.bord]
+  ui.getoond.delete(id)
+  bewaar(staat, opslagFout)
+  const el = view.querySelector(`.briefje-plek[data-id="${id}"]`)
+  if (el) {
+    el.querySelector('.nieuw-sticker')?.remove()
+    el.binnen = '' // volgende keer opnieuw tekenen (ook de tekst voor schermlezers)
+  }
+}
+
+// Weg uit de app of naar een ander bord: wat met een stickertje in beeld
+// was, is gezien. De volgende keer zijn die stickertjes weg.
+function wisGezien() {
+  if (!ui.getoond.size) return
+  const over = (staat.apparaat.nieuw[staat.bord] || []).filter((x) => !ui.getoond.has(x))
+  if (over.length) staat.apparaat.nieuw[staat.bord] = over
+  else delete staat.apparaat.nieuw[staat.bord]
+  ui.getoond.clear()
+  bewaar(staat, opslagFout)
+}
+
+// Wie je bent op de borden waar je nog "Ik" heette.
+function kiesNaam(naam) {
+  staat.apparaat.naam = naam
+  const now = Date.now()
+  for (const [id, bd] of Object.entries(staat.borden)) {
+    const ik = staat.apparaat.ik[id]
+    if (ik && bd.leden[ik] && waarde(bd.leden[ik], 'naam') === GEEN_NAAM) zetLid(bd, ik, 'naam', naam, now)
+  }
+  opslaan()
+}
+
+// ----- Welkom: wie ben jij? (eerste start) -----
+
+function openWelkom({ daarna = null } = {}) {
+  ui.naWelkom = daarna
+  openLaag(
+    `
+    <form class="paneel welkom" id="welkom-form" novalidate>
+      <div class="briefje-plek welkom-plek" style="--px:50%">
+        <div class="briefje welkom-papier papier-zon rand-6">
+          <h2 class="welkom-kop" id="laag-titel">Hoi! Welkom bij het Prikbord 📌</h2>
+          <p class="welkom-tekst">Hoe heet je? Dan zien de anderen straks wie wat prikte.</p>
+          <input name="naam" maxlength="40" autocomplete="given-name" placeholder="Je naam ✍️" aria-label="Je naam" enterkeyhint="done" />
+        </div>
+        <span class="punaise pin-rood" aria-hidden="true"></span>
+      </div>
+      <p class="fout" id="welkom-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-laag="sluit">Later</button>
+        <button type="submit" class="knop primair">Dit ben ik! <span aria-hidden="true">👋</span></button>
+      </div>
+      <p class="paneel-uitleg welkom-voet">Aanpassen kan altijd onder Meer → Wie ben ik.</p>
+    </form>`,
+    'welkom',
+  )
+  laag.querySelector('[name="naam"]').focus({ preventScroll: true })
+}
+
+function bewaarWelkom(form) {
+  const naam = form.naam.value.trim()
+  if (LID_SCHOON.naam(naam) === undefined) {
+    $('#welkom-fout').textContent = 'Vul je naam in ✍️'
+    return form.naam.focus()
+  }
+  kiesNaam(naam)
+  const daarna = ui.naWelkom
+  ui.naWelkom = null
+  if (daarna === 'delen') return openDelen()
+  metRust(async () => {
+    await vervaagLaag(laag)
+    sluitDirect()
+  })
+  toast(`👋 Hoi ${naam}!`)
+}
+
+// ----- Alle borden -----
+
+const BORD_EMOJI = ['🏠', '🧳', '✈️', '🏖️', '⛺', '🎉', '🍽️', '💡', '❤️', '🎄', '🛠️', '📚']
+
+function metWie(bd) {
+  if (!gedeeld(bd.id)) return 'Alleen op deze telefoon'
+  const ik = staat.apparaat.ik[bd.id]
+  const namen = ledenVan(bd)
+    .filter((l) => l.id !== ik)
+    .map((l) => l.naam)
+  if (!namen.length) return 'Gedeeld · nog niemand anders erbij'
+  const eerst = namen.slice(0, 2)
+  const rest = namen.length - eerst.length
+  return `Samen met ${rest > 0 ? `${eerst.join(', ')} en ${meervoud(rest, 'ander', 'anderen')}` : eerst.join(' en ')}`
+}
+
+function openBorden() {
+  const lijst = Object.values(staat.borden).sort((a, b) => waarde(a.info, 'naam', '').localeCompare(waarde(b.info, 'naam', ''), 'nl') || (a.id < b.id ? -1 : 1))
+  const rij = (bd) => {
+    const actief = bd.id === staat.bord
+    const n = aantalNieuw(bd.id)
+    return `
+      <button type="button" class="rij bord-rij" data-borden="kies" data-bord="${bd.id}" ${actief ? 'aria-current="true"' : ''}>
+        <span class="rij-icoon" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
+        <span class="rij-tekst"><strong>${esc(waarde(bd.info, 'naam', 'Prikbord'))}</strong>
+          <span class="klein">${esc(metWie(bd))}</span>
+          ${actief && gedeeld(bd.id) ? `<span class="klein" data-sync-status>${esc(statusTekst())}</span>` : ''}</span>
+        ${n ? `<span class="nieuw-tal">${n} nieuw</span>` : ''}
+        <span class="rij-pijl" aria-hidden="true">${actief ? '✓' : '›'}</span>
+      </button>`
+  }
+  openLaag(
+    `
+    <div class="paneel">
+      <h2 id="laag-titel">📋 Je borden</h2>
+      <p class="paneel-uitleg">Wissel van bord, begin een nieuw bord, of doe mee met het bord van een ander.</p>
+      <div class="groep">${lijst.map(rij).join('')}</div>
+      <button type="button" class="knop blok-knop" data-borden="nieuw">＋ Nieuw bord</button>
+      <button type="button" class="knop blok-knop" data-borden="koppel"><span aria-hidden="true">🔗</span> Ik heb een koppel-link</button>
+      <button type="button" class="knop primair blok-knop" data-laag="sluit">Sluiten</button>
+    </div>`,
+    'borden',
+  )
+}
+
+function wisselBord(id) {
+  if (!staat.borden[id]) return
+  zetWegDoor()
+  wisGezien()
+  const anders = id !== staat.bord
+  staat.bord = id
+  ui.filter = ALLES
+  ui.getrokken = null
+  opslaan()
+  sluitDirect()
+  ui.tab = 'bord'
+  scrollTo(0, 0)
+  render(true)
+  if (anders) meld(`Bord ${waarde(bord().info, 'naam', '')}`)
+  if (gedeeld(id)) motor.ronde(id)
+  plannPeil()
+}
+
+function openNieuwBord() {
+  openLaag(
+    `
+    <form class="paneel" id="bord-nieuw-form" novalidate>
+      <h2 id="laag-titel">📋 Nieuw bord</h2>
+      <p class="paneel-uitleg">Bijvoorbeeld voor een groepsreis, een verbouwing of een verjaardag. Delen met anderen kan straks onder Meer.</p>
+      <label class="veld"><span>Naam</span>
+        <input name="naam" maxlength="60" autocomplete="off" placeholder="Bijv. Groepsreis Porto" /></label>
+      <label class="veld"><span>Emoji</span>
+        <input name="emoji" value="🧳" maxlength="16" autocomplete="off" class="emoji-veld" /></label>
+      <div class="emoji-keus" role="group" aria-label="Kies een emoji">
+        ${BORD_EMOJI.map((e) => `<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}
+      </div>
+      <fieldset class="sjablonen"><legend>Beginnen met</legend>
+        <label class="sjabloon"><input type="radio" name="sjabloon" value="thuis" checked />
+          <span><strong>🏠 De thuis-categorieën</strong><span class="klein">Vakantie, uit eten, recepten, to do, bucketlist …</span></span></label>
+        <label class="sjabloon"><input type="radio" name="sjabloon" value="leeg" />
+          <span><strong>✨ Leeg</strong><span class="klein">Eén categorie; de rest maak je zelf</span></span></label>
+      </fieldset>
+      <p class="fout" id="bord-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-borden="lijst">Terug</button>
+        <button type="submit" class="knop primair">Bord maken</button>
+      </div>
+    </form>`,
+    'nieuw-bord',
+  )
+  laag.querySelector('[name="naam"]').focus({ preventScroll: true })
+}
+
+function maakNieuwBord(form) {
+  const naam = form.naam.value.trim()
+  const emoji = form.emoji.value.trim() || '📌'
+  const fout = $('#bord-fout')
+  if (INFO_SCHOON.naam(naam) === undefined) {
+    fout.textContent = 'Geef het bord een naam ✍️'
+    return form.naam.focus()
+  }
+  if (INFO_SCHOON.emoji(emoji) === undefined) {
+    fout.textContent = 'Kies één emoji (of laat het vakje leeg)'
+    return form.emoji.focus()
+  }
+  const now = Date.now()
+  const bd = nieuwBord({ naam, emoji, sjabloon: form.sjabloon.value === 'leeg' ? 'leeg' : 'thuis', now })
+  staat.apparaat.ik[bd.id] = voegLidToe(bd, { naam: mijnNaam(), now })
+  staat.borden = Object.fromEntries(
+    Object.entries({ ...staat.borden, [bd.id]: bd }).sort(([a], [b]) => (a < b ? -1 : 1)),
+  )
+  wisselBord(bd.id)
+  toast(`${emoji} ${naam} staat klaar! Scheur er een briefje af.`)
+}
+
+// ----- Koppelen: een koppel-link openen of plakken -----
+
+function openKoppelPlak() {
+  openLaag(
+    `
+    <form class="paneel" id="koppel-form" novalidate>
+      <h2 id="laag-titel">🔗 Koppel-link</h2>
+      <p class="paneel-uitleg">Kreeg je een link om mee te prikken? Plak hem hier. Het hele berichtje mag ook.</p>
+      <label class="veld"><span>De link</span>
+        <textarea name="link" rows="3" autocomplete="off" spellcheck="false" class="link-veld" placeholder="https://…/prikbord/#koppel=…"></textarea></label>
+      <p class="fout" id="koppel-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-borden="lijst">Terug</button>
+        <button type="submit" class="knop primair">Verder</button>
+      </div>
+    </form>`,
+    'koppel',
+  )
+  laag.querySelector('[name="link"]').focus({ preventScroll: true })
+}
+
+function leesGeplakt(form) {
+  const k = leesKoppel(form.link.value)
+  if (!k) {
+    $('#koppel-fout').textContent = 'Dit lijkt geen koppel-link. Vraag de ander om hem nog eens te sturen.'
+    return form.link.focus()
+  }
+  openKoppelJa({ ...k, link: form.link.value.trim() })
+}
+
+// "Bord 'Groepsreis Porto' toevoegen?"
+function openKoppelJa(k) {
+  const al = Object.entries(koppelingen.borden).find(([id, x]) => x.r === k.r && staat.borden[id])
+  if (al) {
+    wisselBord(al[0])
+    toast('👍 Dit bord staat al op je telefoon')
+    return
+  }
+  ui.koppel = k
+  openLaag(
+    `
+    <div class="paneel" id="koppel-ja">
+      <h2 id="laag-titel">🤝 Bord '${esc(k.n)}' toevoegen?</h2>
+      <p class="paneel-uitleg">Je ziet dan alle briefjes op dit bord, en de anderen zien wat jij prikt. Wat je al hebt, blijft gewoon staan.</p>
+      ${
+        IOS_SAFARI
+          ? `<div class="tip-briefje papier-zon rand-3">
+              <p><strong>📱 Staat het Prikbord op je beginscherm?</strong> Open dan de app, tik bovenin op de naam van het bord en kies <strong>Ik heb een koppel-link</strong>. Plak daar deze link. Safari en de app op je beginscherm bewaren hun briefjes namelijk apart.</p>
+              <button type="button" class="knop klein-knop" data-koppel="kopieer">📋 Link kopiëren</button>
+            </div>`
+          : ''
+      }
+      <p class="fout" id="koppel-fout" role="alert"></p>
+      <div class="laag-knoppen" id="koppel-knoppen">
+        <button type="button" class="knop" data-koppel="nee">Nee, toch niet</button>
+        <button type="button" class="knop primair" data-koppel="ja">Toevoegen <span aria-hidden="true">🤝</span></button>
+      </div>
+    </div>`,
+    'koppel-ja',
+  )
+}
+
+async function haalEnKoppel() {
+  const k = ui.koppel
+  const knoppen = $('#koppel-knoppen')
+  if (!k || !knoppen) return
+  const ja = knoppen.querySelector('[data-koppel="ja"]')
+  for (const b of knoppen.querySelectorAll('button')) b.disabled = true
+  $('#koppel-fout').textContent = ''
+  ja.textContent = '⏳ Bord ophalen…'
+  let uit
+  try {
+    uit = await haalBord(syncFetch, k)
+  } catch (err) {
+    uit = { fout: err.message }
+  }
+  // Intussen weggeklikt?
+  if (ui.koppel !== k || laag.dataset.soort !== 'koppel-ja') return
+  if (uit.fout || !uit.bord) {
+    $('#koppel-fout').textContent = uit.fout || 'Dit bord staat nog niet op de sync-server. Vraag wie de link stuurde om de app even te openen (met internet), en probeer het dan opnieuw.'
+    for (const b of knoppen.querySelectorAll('button')) b.disabled = false
+    ja.textContent = 'Opnieuw proberen'
+    return
+  }
+  k.server = uit
+  // Stond dit bord al hier (bijv. uit een back-up), dan weten we wie je bent.
+  const bekend = staat.apparaat.ik[uit.bord.id]
+  if (bekend && uit.bord.leden[bekend]) return voltooiKoppel(bekend)
+  openWie()
+}
+
+// "Wie ben jij?" op een bord waar je net bij komt. Al lid (andere telefoon
+// of tablet)? Dan "Dit ben ik al", zodat je hartjes niet dubbel tellen.
+function openWie() {
+  const bd = ui.koppel.server.bord
+  const leden = ledenVan(bd)
+  openLaag(
+    `
+    <form class="paneel" id="wie-form" novalidate>
+      <h2 id="laag-titel">🙋 Wie ben jij?</h2>
+      ${
+        leden.length
+          ? `<p class="paneel-uitleg">Heb je '${esc(waarde(bd.info, 'naam', ui.koppel.n))}' al op een andere telefoon of tablet? Kies dan jezelf, dan tellen je hartjes niet dubbel.</p>
+             <div class="groep">${leden
+               .map(
+                 (l) => `
+               <button type="button" class="rij wie-rij" data-wie="${l.id}" aria-label="Dit ben ik al: ${esc(l.naam)}">
+                 <span class="pin-bol pin-${l.kleur}" aria-hidden="true"></span>
+                 <span class="rij-tekst"><strong>${esc(l.naam)}</strong></span>
+                 <span class="wie-knop" aria-hidden="true">Dit ben ik al</span>
+               </button>`,
+               )
+               .join('')}</div>
+             <h3 class="groep-kop">Nieuw op dit bord?</h3>`
+          : '<p class="paneel-uitleg">Je bent de eerste op dit bord! 🎉</p>'
+      }
+      <label class="veld"><span>Je naam</span>
+        <input name="naam" value="${esc(staat.apparaat.naam)}" maxlength="40" autocomplete="given-name" placeholder="Bijv. Tara" /></label>
+      <p class="fout" id="wie-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-koppel="nee">Toch niet</button>
+        <button type="submit" class="knop primair">Ik ben nieuw hier <span aria-hidden="true">👋</span></button>
+      </div>
+    </form>`,
+    'wie',
+  )
+}
+
+function nieuwLid(form) {
+  const naam = form.naam.value.trim()
+  if (LID_SCHOON.naam(naam) === undefined) {
+    $('#wie-fout').textContent = 'Vul je naam in ✍️'
+    return form.naam.focus()
+  }
+  voltooiKoppel(null, naam)
+}
+
+// Het bord op de telefoon zetten (of samenvoegen als het er al was) en
+// meteen de eerste sync: dan weten de anderen dat je erbij bent.
+function voltooiKoppel(lidId, naam) {
+  const k = ui.koppel
+  if (!k?.server?.bord) return
+  const { rev, bord: vanServer } = k.server
+  const id = vanServer.id
+  const now = Date.now()
+  motor.vergeet(id)
+  motor.onthoud(id, rev, vanServer) // maakt een eigen kopie
+  const bd = staat.borden[id] ? mergeBord(staat.borden[id], vanServer) : vanServer
+  if (!lidId) {
+    if (!staat.apparaat.naam) kiesNaam(naam)
+    lidId = voegLidToe(bd, { naam, now })
+  } else if (!staat.apparaat.naam) kiesNaam(lidVan(bd, lidId).naam)
+  staat.borden = Object.fromEntries(
+    Object.entries({ ...staat.borden, [id]: bd }).sort(([a], [b]) => (a < b ? -1 : 1)),
+  )
+  staat.apparaat.ik[id] = lidId
+  koppelingen.borden[id] = { u: k.u, r: k.r }
+  bewaarSync(koppelingen)
+  ui.koppel = null
+  // Een leeg beginbord dat je nooit gebruikte, ruimen we op: anders heb je
+  // na je eerste koppel-link twee borden die "Thuis" heten.
+  for (const ander of Object.values(staat.borden)) if (ander.id !== id && onaangeroerd(ander)) haalVanTelefoon(ander.id)
+  wisselBord(id)
+  toast(`🤝 Welkom op '${waarde(bd.info, 'naam', k.n)}'!`)
+}
+
+async function kopieerKoppel() {
+  try {
+    await navigator.clipboard.writeText(ui.koppel?.link || '')
+    toast('📋 Gekopieerd! Plak hem in de app op je beginscherm.')
+  } catch {
+    prompt('Kopieer deze link:', ui.koppel?.link || '')
+  }
+}
+
+// ----- Delen: een koppel-link maken en versturen -----
+
+function koppelLink(id = staat.bord) {
+  const k = koppelingen.borden[id]
+  return k ? maakKoppel(`${location.origin}${location.pathname}`, { u: k.u, r: k.r, n: waarde(staat.borden[id].info, 'naam', 'Prikbord') }) : ''
+}
+
+function openDelen() {
+  // Eerst je naam, anders heet je bij de anderen "Ik".
+  if (!staat.apparaat.naam) return openWelkom({ daarna: 'delen' })
+  const bd = bord()
+  const naam = waarde(bd.info, 'naam', 'Prikbord')
+  if (!gedeeld()) {
+    openLaag(
+      `
+      <form class="paneel" id="delen-form" novalidate>
+        <h2 id="laag-titel">🤝 Samen prikken</h2>
+        <p class="paneel-uitleg">Deel '${esc(naam)}' met een koppel-link. Wie hem opent, ziet alle briefjes en kan meeprikken, en jullie zien meteen wat de ander doet.</p>
+        <p class="paneel-uitleg">🔐 Iedereen met deze link kan meekijken en prikken. Stuur hem alleen naar wie je erbij wilt hebben.</p>
+        ${
+          DEFAULT_SYNC_URL
+            ? ''
+            : `<label class="veld"><span>Adres van de sync-server</span>
+                 <input name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" value="${esc(koppelingen.url)}" placeholder="https://prikbord.jouw-naam.workers.dev" /></label>`
+        }
+        <p class="fout" id="delen-fout" role="alert"></p>
+        <div class="laag-knoppen">
+          <button type="button" class="knop" data-laag="sluit">Later</button>
+          <button type="submit" class="knop primair">Maak een koppel-link <span aria-hidden="true">🔗</span></button>
+        </div>
+      </form>`,
+      'delen',
+    )
+    return
+  }
+  const ik = ikId()
+  openLaag(
+    `
+    <div class="paneel">
+      <h2 id="laag-titel">🤝 Samen prikken</h2>
+      <p class="paneel-uitleg">Stuur deze link naar wie mee mag prikken op '${esc(naam)}'. 🔐 Iedereen met deze link kan meekijken en prikken.</p>
+      <label class="veld"><span>Koppel-link</span>
+        <input id="koppel-link" class="link-veld" readonly value="${esc(koppelLink())}" /></label>
+      <button type="button" class="knop primair blok-knop" data-delen="deel"><span aria-hidden="true">🔗</span> Link delen</button>
+      <h3 class="groep-kop">Op dit bord</h3>
+      <div class="groep">${ledenVan(bd)
+        .map((l) => `<div class="rij"><span class="pin-bol pin-${l.kleur}" aria-hidden="true"></span><span class="rij-tekst"><strong>${esc(l.naam)}${l.id === ik ? ' (jij)' : ''}</strong></span></div>`)
+        .join('')}</div>
+      <h3 class="groep-kop">Synchroniseren</h3>
+      <div class="groep">
+        <div class="rij"><span class="rij-icoon" aria-hidden="true">🔄</span><span class="rij-tekst"><span data-sync-status>${esc(statusTekst())}</span></span></div>
+        <button type="button" class="rij" data-delen="nu"><span class="rij-icoon" aria-hidden="true">⚡</span><span class="rij-tekst"><strong>Nu synchroniseren</strong></span><span class="rij-pijl" aria-hidden="true">›</span></button>
+      </div>
+      <button type="button" class="knop primair blok-knop" data-laag="sluit">Klaar <span aria-hidden="true">👍</span></button>
+    </div>`,
+    'delen',
+  )
+}
+
+function startDelen(form) {
+  const url = schoonAdres(DEFAULT_SYNC_URL || form.url?.value)
+  if (!url) {
+    $('#delen-fout').textContent = 'Vul het https-adres van de sync-server in, bijv. https://prikbord.jouw-naam.workers.dev'
+    return form.url?.focus()
+  }
+  if (!DEFAULT_SYNC_URL) koppelingen.url = url
+  koppelingen.borden[staat.bord] = { u: url, r: nieuweCode() }
+  bewaarSync(koppelingen)
+  motor.vergeet(staat.bord)
+  laatsteActiviteit[staat.bord] = Date.now()
+  motor.ronde(staat.bord).then(plannPeil)
+  openDelen()
+  tekenStatus()
+  // Nog binnen de tik: anders weigert de iPhone het deelmenu.
+  deelLink()
+}
+
+async function deelLink() {
+  const url = koppelLink()
+  const naam = waarde(bord().info, 'naam', 'Prikbord')
+  if (navigator.share) {
+    ui.bezig++
+    try {
+      await navigator.share({ title: `Prikbord: ${naam}`, text: `Prik je mee op '${naam}'? 📌`, url })
+      return
+    } catch (err) {
+      if (err.name === 'AbortError') return
+    } finally {
+      ui.bezig--
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    toast('🔗 Link gekopieerd! Plak hem in een appje.')
+  } catch {
+    $('#koppel-link')?.select()
+    toast('🔗 Kopieer de link hierboven')
+  }
+}
+
+// ----- Wie ben ik (naam en kleur op dit bord) -----
+
+const PINNAMEN = { rood: 'rood', blauw: 'blauw', groen: 'groen', geel: 'geel', paars: 'paars', oranje: 'oranje', roze: 'roze', turkoois: 'turkoois' }
+
+function openIk() {
+  const bd = bord()
+  const ik = lidVan(bd, ikId())
+  const anderen = new Map(
+    ledenVan(bd)
+      .filter((l) => l.id !== ik.id)
+      .map((l) => [l.kleur, l.naam]),
+  )
+  openLaag(
+    `
+    <form class="paneel" id="ik-form" novalidate>
+      <h2 id="laag-titel">🙋 Wie ben ik?</h2>
+      <p class="paneel-uitleg">Op '${esc(waarde(bd.info, 'naam', 'Prikbord'))}'. Je naam staat bij wat je prikt, en je punaises en hartjes hebben jouw kleur.</p>
+      <label class="veld"><span>Je naam</span>
+        <input name="naam" value="${esc(ik.naam === GEEN_NAAM ? '' : ik.naam)}" maxlength="40" autocomplete="given-name" placeholder="Bijv. Oscar" /></label>
+      <fieldset class="kleuren pin-keus"><legend>Kleur van je punaises</legend>
+        ${PUNAISE.map((k) => {
+          const van = anderen.get(k)
+          return `<label class="kleur pin-${k}" title="${van ? `Ook van ${esc(van)}` : PINNAMEN[k]}"><input type="radio" name="kleur" value="${k}" ${k === ik.kleur ? 'checked' : ''} /><span class="vh">${PINNAMEN[k]}${van ? `, ook van ${esc(van)}` : ''}</span>${van ? `<span class="pin-van" aria-hidden="true">${esc([...van][0].toUpperCase())}</span>` : ''}</label>`
+        }).join('')}
+      </fieldset>
+      <p class="fout" id="ik-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-laag="sluit">Terug</button>
+        <button type="submit" class="knop primair">Bewaren</button>
+      </div>
+    </form>`,
+    'ik',
+  )
+}
+
+function bewaarIk(form) {
+  const naam = form.naam.value.trim()
+  if (LID_SCHOON.naam(naam) === undefined) {
+    $('#ik-fout').textContent = 'Vul je naam in ✍️'
+    return form.naam.focus()
+  }
+  const now = Date.now()
+  kiesNaam(naam)
+  zetLid(bord(), ikId(), 'naam', naam, now)
+  zetLid(bord(), ikId(), 'kleur', form.kleur.value, now)
+  opslaan()
+  sluitDirect()
+  toast('🙋 Bewaard!')
+}
+
+// ----- Dit bord: naam, emoji en verlaten -----
+
+function openBordInstel() {
+  const bd = bord()
+  const emoji = waarde(bd.info, 'emoji', '📌')
+  openLaag(
+    `
+    <form class="paneel" id="bord-form" novalidate>
+      <h2 id="laag-titel">${esc(emoji)} Dit bord</h2>
+      <p class="paneel-uitleg">${gedeeld() ? 'Een nieuwe naam of emoji zien de anderen ook.' : 'Dit bord staat alleen op deze telefoon.'}</p>
+      <label class="veld"><span>Naam</span>
+        <input name="naam" value="${esc(waarde(bd.info, 'naam', ''))}" maxlength="60" autocomplete="off" /></label>
+      <label class="veld"><span>Emoji</span>
+        <input name="emoji" value="${esc(emoji)}" maxlength="16" autocomplete="off" class="emoji-veld" /></label>
+      <div class="emoji-keus" role="group" aria-label="Kies een emoji">
+        ${BORD_EMOJI.map((e) => `<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}
+      </div>
+      <p class="fout" id="bord-fout" role="alert"></p>
+      <div class="laag-knoppen">
+        <button type="button" class="knop" data-laag="sluit">Terug</button>
+        <button type="submit" class="knop primair">Bewaren</button>
+      </div>
+      <button type="button" class="knop-tekst" data-borden="verlaat">👋 Dit bord verlaten</button>
+    </form>`,
+    'bord',
+  )
+}
+
+function bewaarBordInstel(form) {
+  const naam = form.naam.value.trim()
+  const emoji = form.emoji.value.trim() || '📌'
+  if (INFO_SCHOON.naam(naam) === undefined) {
+    $('#bord-fout').textContent = 'Geef het bord een naam ✍️'
+    return form.naam.focus()
+  }
+  if (INFO_SCHOON.emoji(emoji) === undefined) {
+    $('#bord-fout').textContent = 'Kies één emoji (of laat het vakje leeg)'
+    return form.emoji.focus()
+  }
+  const now = Date.now()
+  zetInfo(bord(), 'naam', naam, now)
+  zetInfo(bord(), 'emoji', emoji, now)
+  opslaan()
+  sluitDirect()
+  toast('✍️ Bewaard')
+}
+
+// Geen briefjes, niet gedeeld en de naam, emoji en categorieën nooit aangepast.
+function onaangeroerd(bd) {
+  if (Object.keys(bd.briefjes).length || gedeeld(bd.id)) return false
+  const registers = [...Object.values(bd.info), ...Object.values(bd.cats).flatMap((c) => Object.values(c))]
+  return registers.every((r) => r.t === bd.gemaakt)
+}
+
+// Een bord van deze telefoon halen, met alles wat erbij hoort.
+function haalVanTelefoon(id) {
+  delete staat.borden[id]
+  for (const m of ['ik', 'weergave', 'sorteer', 'laatsteCat', 'nieuw']) delete staat.apparaat[m][id]
+  if (staat.apparaat.concept?.bord === id) staat.apparaat.concept = null
+  delete koppelingen.borden[id]
+  bewaarSync(koppelingen)
+  motor.vergeet(id)
+  delete syncStatus[id]
+}
+
+// Bord verlaten haalt het alleen van deze telefoon weg (§5.1). Was het je
+// laatste bord, dan begin je met een vers bord "Thuis".
+function verlaatBord(id = staat.bord) {
+  const bd = staat.borden[id]
+  if (!bd) return
+  const naam = waarde(bd.info, 'naam', 'Prikbord')
+  const samen = gedeeld(id)
+  const vraag = samen
+    ? `'${naam}' van deze telefoon halen? De anderen houden alles, en met de koppel-link kun je later terug.`
+    : `'${naam}' staat alleen op deze telefoon. Verlaten = alle briefjes van dit bord weg. Twijfel je? Maak dan eerst een back-up. Toch verlaten?`
+  if (!confirm(vraag)) return
+  zetWegDoor()
+  wisGezien()
+  haalVanTelefoon(id)
+  const over = Object.values(staat.borden).sort((a, b) => waarde(a.info, 'naam', '').localeCompare(waarde(b.info, 'naam', ''), 'nl'))
+  if (over.length) staat.bord = over[0].id
+  else {
+    const vers = beginStaat(Date.now(), staat.apparaat.naam)
+    staat.borden = vers.borden
+    staat.bord = vers.bord
+    staat.apparaat.ik = { ...vers.apparaat.ik }
+  }
+  sluitDirect()
+  wisselBord(staat.bord)
+  toast(samen ? `👋 Je hebt '${naam}' verlaten. De anderen houden alles.` : `👋 '${naam}' is weg`)
 }
 
 // ---------- Weghalen, met 5 tellen ongedaan maken (§6.2) ----------
@@ -1645,6 +2515,10 @@ const acties = {
     meld(sorteerWijze() === 'hartjes' ? 'Gesorteerd op meeste hartjes' : 'Gesorteerd op nieuwste eerst')
   },
   cats: () => openCats(),
+  borden: () => openBorden(),
+  delen: () => openDelen(),
+  ik: () => openIk(),
+  'bord-instel': () => openBordInstel(),
   export: exporteer,
   import: () => $('#import-bestand').click(),
   changelog: () => openChangelog(0),
@@ -1703,6 +2577,11 @@ document.querySelector('.tabbar').addEventListener('click', (e) => {
 
 // Netjes of vrij: per telefoon en per bord onthouden (§5.2).
 $('.kop').addEventListener('click', (e) => {
+  // Tik op de bordnaam: alle borden.
+  if (e.target.closest('#kop-titel')) {
+    if (!laag.open && !ui.bezig) openBorden()
+    return
+  }
   const knop = e.target.closest('[data-weergave]')
   if (!knop || laag.open) return
   const v = knop.dataset.weergave
@@ -1740,7 +2619,46 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden') return
   zetWegDoor()
   bewaarNu(staat, opslagFout)
+  // Wat nog gebundeld wachtte meteen versturen (lukt dat niet meer, dan gaat
+  // het de volgende keer mee: het blijft in het verschil staan).
+  if (bundel) stuurGewijzigd()
+  clearTimeout(peilTimer)
+  wisGezien()
+  render()
 })
+
+// Terug in de app: meteen kijken wat er nieuw is, en weer peilen.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return
+  stuurGewijzigd()
+  if (gedeeld()) motor.ronde(staat.bord).then(plannPeil)
+})
+addEventListener('online', () => {
+  stuurGewijzigd()
+  if (gedeeld()) motor.ronde(staat.bord).then(plannPeil)
+})
+addEventListener('offline', () => {
+  for (const id of Object.keys(koppelingen.borden)) zetStatus(id, { status: 'offline' })
+})
+// Een koppel-link openen terwijl de app al openstaat.
+addEventListener('hashchange', () => {
+  const k = koppelUitAdres()
+  if (k) {
+    if (laag.open) sluitDirect()
+    openKoppelJa(k)
+  }
+})
+
+// Een koppel-link in het adres (…/#koppel=…): uit het adres halen (anders
+// staat hij in de geschiedenis en bij een herlaad opnieuw open) en lezen.
+function koppelUitAdres() {
+  if (!/koppel=/.test(location.hash)) return null
+  const link = location.href
+  history.replaceState(null, '', location.pathname + location.search)
+  const k = leesKoppel(link)
+  if (!k) toast('⚠️ Deze koppel-link is kapot. Vraag om een nieuwe.', { ms: 5000 })
+  return k && { ...k, link }
+}
 addEventListener('pagehide', () => {
   zetWegDoor()
   bewaarNu(staat, opslagFout)
@@ -1813,9 +2731,13 @@ document.fonts?.ready.then(() => legBordNeer())
 toonNieuwsSindsVorigeKeer()
 vraagBlijvendeOpslag()
 
-// Half geschreven briefje van de vorige keer? Meteen weer openen (regel 12).
+// Een koppel-link gaat voor. Anders: half geschreven briefje van de vorige
+// keer meteen weer openen (regel 12). Anders, bij de eerste start: wie ben jij?
+const binnenLink = koppelUitAdres()
 const concept = staat.apparaat.concept
-if (concept && concept.bord === staat.bord && concept.tekst.trim() && !laag.open) {
+if (binnenLink) openKoppelJa(binnenLink)
+else if (concept && concept.bord === staat.bord && concept.tekst.trim() && !laag.open) {
   openVel({ ...concept, id: concept.id || maakId(), nieuw: concept.nieuw || !concept.id })
   toast('✍️ Je was nog aan het schrijven. Hier is je briefje terug!')
-}
+} else if (opgestart.nieuw && !staat.apparaat.naam && !laag.open) openWelkom()
+startSync()
