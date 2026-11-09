@@ -1817,7 +1817,7 @@ function openVel({ id, nieuw, tekst = '', cat, link, foto, plek, vanBlok = false
       </div>
       <div class="briefje-plek vel-plek">
         <div class="briefje vel-papier papier-${kleur} rand-${u.rand}" id="vel-papier">
-          <textarea id="vel-tekst" maxlength="${MAX_TEKST}" rows="5" placeholder="Wat wil je onthouden? ✍️" aria-label="Wat er op het briefje staat">${esc(tekst)}</textarea>
+          <textarea id="vel-tekst" maxlength="${MAX_TEKST}" rows="3" placeholder="Wat wil je onthouden? ✍️" aria-label="Wat er op het briefje staat">${esc(tekst)}</textarea>
           <div class="vel-bijlagen" id="vel-bijlagen">${velBijlagenHtml()}</div>
           <span class="vel-teller" id="vel-teller" aria-live="polite"></span>
         </div>

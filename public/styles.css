@@ -2497,3 +2497,19 @@ li + li .zoek-uitkomst {
     transition: none;
   }
 }
+
+/* Kleine toelichting in een veld op het donkere doek: goed leesbaar houden. */
+.paneel .veld .klein {
+  color: #eadcc8;
+  opacity: 1;
+}
+
+/* Met het toetsenbord open (± 420 px) moet "Prikken!" boven het toetsenbord
+   blijven, ook met een foto en labels op het vel. Het tekstvak begint met 3
+   regels en groeit mee als er ruimte is. */
+.vel-papier textarea {
+  min-height: calc(var(--hand-regel) * 2);
+}
+.vel-bijlagen .polaroid.klein {
+  width: 62px;
+}

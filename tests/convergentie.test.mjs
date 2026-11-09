@@ -1,6 +1,7 @@
 // Convergentie (§9): 3 gesimuleerde telefoons doen willekeurige bewerkingen
 // (tekst, categorie, hartjes, slepen, gedaan, verwijderen, nieuwe briefjes,
-// categorieën, leden, bordnaam) en synchroniseren in willekeurige volgorde,
+// categorieën, leden, bordnaam, en sinds M4 link, foto en plek) en
+// synchroniseren in willekeurige volgorde,
 // met de echte sync-motor (public/js/sync.js) en de echte worker. De nep-KV
 // geeft soms een verouderde stand terug (KV is "uiteindelijk consistent").
 // Een schrijfactie die daarop voortbouwt, overschrijft dan die van een ander:
@@ -107,7 +108,15 @@ function bewerk(t, r) {
   const x = r()
   if (x < 0.14 || !levend.length) {
     nieuwBriefje(bord, { id: `brf-${t.naam}-${t.teller++}`, door: t.ik, tekst: kies(TEKSTEN), cat: kies(CATS), now })
-  } else if (x < 0.3) zetVeld(kies(levend), 'tekst', `${kies(TEKSTEN)} ${Math.floor(r() * 9)}`, now)
+  } else if (x < 0.24) zetVeld(kies(levend), 'tekst', `${kies(TEKSTEN)} ${Math.floor(r() * 9)}`, now)
+  else if (x < 0.3) {
+    // M4: link, foto of plek erop, eraf of anders.
+    const b = kies(levend)
+    const veld = kies(['link', 'foto', 'plek'])
+    const leeg = r() < 0.25
+    const w = { link: `https://example.com/recept/${Math.floor(r() * 5)}`, foto: `foto${t.naam}${Math.floor(r() * 4)}xx`, plek: { lat: 52 + Math.floor(r() * 5) / 10, lng: 4.3, naam: kies(['Delft', 'Den Haag', 'Porto']) } }[veld]
+    zetVeld(b, veld, leeg ? null : w, now)
+  }
   else if (x < 0.38) zetVeld(kies(levend), 'cat', kies(CATS), now)
   else if (x < 0.55) {
     const b = kies(levend)
@@ -205,6 +214,7 @@ test('convergentie: 3 telefoons, 1500 rondes, om de beurt (geseed, herhaalbaar)'
   t.diagnostic(`onderweg: ${uit.stats.verouderd} verouderde leesacties, ${uit.stats.mislukt} mislukte schrijfacties, ${uit.stats.schrijf} geslaagde schrijfacties`)
   assert.ok(uit.stats.verouderd > 100 && uit.stats.mislukt > 20, 'de KV was echt lastig')
   assert.ok(briefjes.some((x) => x.weg) && briefjes.some((x) => x.v?.gedaan?.w) && briefjes.some((x) => Object.keys(x.hart || {}).length > 1))
+  assert.ok(['link', 'foto', 'plek'].every((k) => briefjes.some((x) => x.v?.[k]?.w)), 'ook links, foto’s en plekken samengevoegd')
 })
 
 test('convergentie: 3 telefoons, 400 rondes, tegelijk (rondes lopen door elkaar)', async () => {

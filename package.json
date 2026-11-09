@@ -13,7 +13,8 @@
     "screenshots": "node scripts/screenshots.mjs",
     "screenshots:m2": "node scripts/screenshots-m2.mjs",
     "worker": "node scripts/bouw-worker.mjs",
-    "nep-worker": "node scripts/nep-worker.mjs"
+    "nep-worker": "node scripts/nep-worker.mjs",
+    "screenshots:m4": "node scripts/screenshots-m4.mjs"
   },
   "devDependencies": {
     "oxlint": "1.92.0",
