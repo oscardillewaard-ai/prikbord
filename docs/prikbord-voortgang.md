@@ -3,8 +3,9 @@
 Elke mijlpaal krijgt een nieuwe chat (afspraak met Oscar, 8 nov 2026). Dit
 bestand is het geheugen tussen die chats. Leidend blijft
 `docs/prikbord-spec.md`. Afwijkingen staan in `docs/prikbord-afwijkingen.md`;
-lees vooral A3 (eigen repo, andere paden), A4 (categorieën nooit wissen) en
-A5 (de worker wordt gebouwd met `npm run worker`).
+lees vooral A3 (eigen repo, andere paden), A4 (categorieën nooit wissen), A5
+(de worker wordt gebouwd met `npm run worker`) en A6 (de Nominatim-pauze geldt
+per worker-exemplaar; voorgesteld).
 
 **Bij een nieuwe chat:**
 - Kies de cloudomgeving **"Tezt"**. Die laat naast de package registries ook
@@ -25,7 +26,7 @@ A5 (de worker wordt gebouwd met `npm run worker`).
 | M1 fundament en uiterlijk | klaar en gedeployd (8 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-d21b9af2-gogh6f` |
 | M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
 | M3 samen | klaar, nog niet gedeployd. Oscar zet de worker later neer en test dan met twee telefoons; M4 mag al beginnen (besluit 9 nov) | `ccr-fc257cf9-70gzqa` |
-| M4 link, foto en kaart | nog niet begonnen | |
+| M4 link, foto en kaart | klaar, nog niet gedeployd; wacht op akkoord van Oscar. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
 | M5 afronden | nog niet begonnen | |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
@@ -68,7 +69,33 @@ A5 (de worker wordt gebouwd met `npm run worker`).
 - **KV is "uiteindelijk consistent"** (developers.cloudflare.com/kv/concepts/how-kv-works): "Changes are usually immediately visible in the Cloudflare global network location at which they are made. Changes may take up to 60 seconds or more to be visible in other global network locations". Ook op dezelfde locatie is dat "not guaranteed". Gevolg: meestal zie je een wijziging binnen een paar tellen, soms pas na een minuut. Het opnieuw sturen uit §6.3 vangt verloren schrijfacties op, en de convergentietest moet ook verouderde reads nabootsen.
 - **Nominatim-beleid** (operations.osmfoundation.org/policies/nominatim): absoluut max. 1 verzoek per seconde voor alle gebruikers samen. De app identificeren met een Referer of User-Agent (een e-mailadres is niet verplicht). Duidelijke bronvermelding. Uit te zetten zonder app-update. Bij voorkeur via een proxy met cache. Autocomplete is verboden, net als systematische zoekopdrachten. Nieuw sinds de spec: een sectie "Usage in LLMs". Daarin staat dat het publieke API alleen gebruikt mag worden als "the application developer has made a deliberate, informed decision to use it and is directly responsible for complying with this policy". Dat is Oscar: hij koos Nominatim zelf in de spec, en dit is hem verteld.
 
+- **Cache API van Cloudflare** (developers.cloudflare.com/workers/runtime-apis/cache, nagelezen op 9 nov 2026): "Workers deployed to custom domains have access to functional cache operations", en in de editor van het dashboard en de Playground doet de cache niets. Over een `*.workers.dev`-adres zegt de pagina niets duidelijks. Uit mijn kennis: daar doet `cache.put` mogelijk niets. Daarom onthoudt de worker zoekantwoorden óók in zijn eigen geheugen (per exemplaar), en werkt zoeken zonder cache gewoon (alleen vaker naar Nominatim, nog steeds hooguit 1 per seconde).
+- **KV met foto's** (developers.cloudflare.com/kv/api/write-key-value-pairs en read-key-value-pairs, 9 nov 2026): een waarde mag een `ArrayBuffer` zijn, metadata hooguit 1024 bytes, en `getWithMetadata(sleutel, { type: 'arrayBuffer' })` werkt voor één sleutel. Max. 25 MiB per waarde, dus 1,5 MB per foto is ruim.
+- **Een variabele zetten in het dashboard** (developers.cloudflare.com/workers/configuration/environment-variables, 9 nov 2026): Workers & Pages → de worker → Settings → Variables and Secrets → Add → Type, naam en waarde → Deploy. Zo zet Oscar `ZOEKEN = uit`.
+- **Durable Objects** (developers.cloudflare.com/durable-objects/platform/pricing, 9 nov 2026): ook op het gratis plan, alleen met SQLite-opslag. Zie het alternatief bij A6.
+
 ## Aannames die ik aanhoud (tenzij Oscar anders zegt)
+
+Nieuw in M4 (link, foto en kaart):
+
+- **Link:** de paperclip opent een vakje op het schrijfvel. "ah.nl/recept" wordt `https://ah.nl/recept`; uit een geplakt berichtje ("Kijk! https://… leuk") halen we het adres. Alleen http(s). Op het briefje staat het domein zonder "www." ("🔗 ah.nl"), groot geopend een klikbare link (nieuw tabblad). Een link die je typte maar niet met OK bevestigde, gaat bij "Prikken!" toch mee.
+- **Foto kiezen:** één knop (plakband), die het gewone fotomenu van de telefoon opent (camera of fotobibliotheek; geen `capture`, dan mag je kiezen). Eén foto per briefje, plus één bij "Gedaan!". Een nieuwe foto vervangt de oude.
+- **Verkleinen:** eerst 1600 px met kwaliteit 0,8 (§6.4). Is hij dan groter dan 400 KB, dan 0,7, dan 1280 px, 1024 px en 800 px, en anders de kleinste. Een staande foto draait de browser zelf rechtop (via `<img>`, EXIF). Doorzichtige png krijgt wit eronder.
+- **HEIC:** Chrome kan HEIC niet lezen; dan "Deze foto kan ik niet lezen. Is het een HEIC-foto? …". Uit mijn kennis, niet getest: Safari op de iPhone leest HEIC wél, en de iPhone geeft een foto bij `accept="image/*"` meestal al als JPEG door. Een echte HEIC heb ik niet kunnen testen (geen voorbeeldbestand in deze sessie); de rooktest gebruikt een bestand met alleen de HEIC-kop.
+- **"1,5 MB"** = 1,5 × 1024 × 1024 = 1.572.864 bytes (`MAX_FOTO` in `validate.js`, voor app en worker dezelfde).
+- **Uploaden:** alleen op een gedeeld bord. Wordt een bord gedeeld (of kom je op een bord dat je al had), dan gaan alle foto's van dat bord die op deze telefoon staan in de wachtrij. Elke foto kost één KV-schrijfactie, ook bij het delen: een bord met 50 foto's delen kost dus 50 schrijfacties in één keer.
+- **Niet herladen tijdens een upload** (§4.1, regel 5) met een eigen teller `ui.uploads`, niet met `ui.bezig` zoals de overdracht voorstelde: `ui.bezig` blokkeert ook tikken (het blokje, slepen, 🎲), en een upload op de achtergrond mag dat niet doen.
+- **Ophalen:** een foto van een ander wordt opgehaald zodra het briefje getekend wordt, en meteen in IndexedDB bewaard (de service worker cachet geen andere sites). Staat hij er nog niet (404 of offline), dan een leeg polaroidje met 📷, en na 20 s (bij de volgende peiling) of bij `online` opnieuw. Alle foto's worden meteen geladen, ook buiten beeld; pas laden als ze in beeld komen, hoort bij M5 (prestaties).
+- **Opruimen:** een foto die bij geen briefje (of concept) meer hoort, gaat na twee dagen van de telefoon (bij het opstarten). In KV blijven foto's staan: er is geen endpoint om een foto weg te halen. 1 GB opslag is ± 2.500 foto's van 400 KB. Idee voor later: foto's van grafstenen opruimen.
+- **Back-up:** zonder foto's gaat het zoals altijd (meteen). Met foto's kies je eerst "Met foto's (± 3,2 MB · 8 foto's)" of "Zonder foto's", met een waarschuwing over de grootte. De foto's worden alvast ingepakt terwijl je kiest, zodat het deelmenu daarna direct binnen je tik opengaat (anders weigert Safari het, uit mijn kennis). Bestandsnaam met foto's: `prikbord-backup-<datum>-met-fotos.json`. Terugzetten bewaart de foto's die er nog niet waren, en stuurt ze naar de anderen als het bord gedeeld is.
+- **Kaart-tab:** filters zoals op het bord, plus "✅ Gedaan ook" (gedane briefjes grijs). De eerste keer zet de kaart alle punaises in beeld; daarna onthoudt hij per bord waar je was (niet bewaard na herstart). Zonder plekken: een briefje met uitleg. Liggen punaises dicht op elkaar (bijv. Den Haag en Delft, uitgezoomd), dan overlappen ze; inzoomen helpt. Clusteren kan later met een Leaflet-plug-in, als Oscar dat wil.
+- **Punaises met het toetsenbord:** Leaflet opent met Enter alleen een popup. De app vangt Enter en spatie zelf af (de rooktest vond dit).
+- **Leaflet laden** gebeurt pas als je de kaart nodig hebt (kaart-tab of een plek kiezen). Het staat wel in de offline-lijst van de service worker; offline zie je de punaises dus op een lege achtergrond (de tegels komen van een andere site).
+- **Plek kiezen:** één scherm met de kaart, "🎯 Mijn locatie", en één vakje om te zoeken óf een link in te plakken. Een geplakte link (Google Maps, OpenStreetMap, Apple Kaarten, `geo:`) of twee getallen wordt meteen gebruikt, zonder zoekdienst. Bij Google gaat de punaise van de plek zelf (`!3d…!4d…`) voor het midden van de kaart (`/@…`). Een verkorte link (`maps.app.goo.gl`) kan de app niet openen (dat blokkeert de browser); dan uitleg om de lange link te kopiëren. Een link met alleen een plaatsnaam zet die naam in het zoekvakje. De naam van de plek mag je aanpassen of leeg laten; dan staan de coördinaten op het briefje ("52,0116° N, 4,3571° O").
+- **Zoeken:** alleen na een tik op Zoek (of Enter), nooit tijdens het typen; de app wacht minstens 1 s tussen twee zoekopdrachten. Hooguit 5 uitkomsten in het Nederlands (`accept-language=nl`), wereldwijd (niet alleen Nederland, voor vakanties). Eén uitkomst wordt meteen gekozen. Zoeken gaat via de sync-worker van dit bord, of anders het adres dat je eerder invulde; zonder sync-server staat er uitleg en werken de andere drie manieren. Zodra `DEFAULT_SYNC_URL` gevuld is, kan iedereen zoeken.
+- **Zoeken alleen voor de app:** `/zoek` weigert verzoeken zonder de juiste `Origin` (403). Anders kan elke website zijn bezoekers via Oscars worker bij Nominatim laten zoeken; CORS houdt alleen het lezen tegen, niet het verzoek zelf. Met curl kan iemand dat nog steeds nadoen, maar dan sluit `ZOEKEN=uit` het meteen af.
+- **"Op de kaart"** op een geopend briefje gaat naar de kaart-tab, ingezoomd op dat briefje (zoom 16). Een gedaan briefje zet daarbij "Gedaan ook" aan.
+
 
 Nieuw in M3 (samen):
 
@@ -144,6 +171,50 @@ Uit M0:
 
 ## Logboek
 
+### M4 (9 nov 2026): link, foto en kaart
+
+- **Gedaan, in volgorde van de spec (§8):**
+  - **Link (§5.5):** paperclip op het schrijfvel, "🔗 ah.nl" op het briefje, een klikbare link in het geopende briefje. Nieuwe pure module `js/link.js` (`linkUitInvoer`, `domeinVan`).
+  - **Foto's (§6.4):** `js/photos.js` verkleint via canvas (langste zijde 1600 px, JPEG 0,8, liefst onder 400 KB; rekenwerk in de pure module `js/fotomaat.js`), bewaart als Blob in IndexedDB (database `prikbord`, store `fotos`) en houdt een uploadwachtrij bij (store `wachtrij`), zodat een offline toegevoegde foto later alsnog vertrekt, ook na een herstart. Polaroidje met plakband op het bord, in de Gedaan-doos en groot; een vriendelijk leeg polaroidje (📷) zolang hij er niet is. Ook een foto bij "Gedaan!" (§5.8). Back-up met of zonder foto's (base64 in de JSON), en terugzetten met foto's.
+  - **Foto-endpoints in de worker:** `PUT /bord/<code>/foto/<id>` (max. 1,5 MB, alleen jpeg, png of webp, en de bytes moeten kloppen met het type: `fotoSoort` in `validate.js`, dus dezelfde controle in app en worker, zie A5) en `GET` met `Cache-Control: public, max-age=31536000, immutable`. Eén KV-sleutel per foto (`foto:<code>:<id>`), niet in de bordstand. Stond hij er al, dan geen tweede schrijfactie. Mislukte KV → 503 met `opnieuw`.
+  - **Kaart-tab (§5.9):** Leaflet 1.9.4 uit Tezt `public/parken/vendor/` naar `public/vendor/` (met `LEAFLET-LICENSE`, BSD-2), tegels van OpenStreetMap met zichtbare "© OpenStreetMap-bijdragers". Punaises in de papierkleur van de categorie met de emoji erin, een rood randje bij "nieuw", grijs voor gedaan ("✅ Gedaan ook"). Filters werken hier ook. Tik (of Enter) op een punaise opent het briefje. `js/map.js` laadt Leaflet pas als het nodig is.
+  - **Plek kiezen op vier manieren (§5.9):** (1) tikken op de kaart en de punaise verslepen, (2) "🎯 Mijn locatie", (3) een link van Google Maps, OpenStreetMap of Apple Kaarten plakken (pure module `js/plek.js`: `plekUitLink`), (4) zoeken op naam via de worker.
+  - **Zoeken via Nominatim, alleen via de worker (§6.5):** `GET /zoek?q=…` met User-Agent `Prikbord/1.0 (+https://github.com/oscardillewaard-ai/prikbord)`, `format=jsonv2`, max. 5, `accept-language=nl`. Antwoorden een week onthouden (Cache API, plus een kleine cache in het geheugen; niet in KV). Minstens 1 s tussen twee vragen aan Nominatim, in de worker én in de app (zie A6 voor de kanttekening). `ZOEKEN=uit` zet het uit zonder app-update; de statuspagina zegt of zoeken aan of uit staat. Bronvermelding bij het zoeken.
+- **Release:** versie 4 (`APP_VERSION`, `CACHE` = `prikbord-v4`, `CHANGELOG`). In `SHELL`: `js/fotomaat.js`, `js/link.js`, `js/map.js`, `js/photos.js`, `js/plek.js`, `vendor/leaflet.css`, `vendor/leaflet.js`.
+- **Nieuw in het datamodel:** niets: `link`, `foto`, `plek` en `gedaan.foto` stonden al in `VELD_SCHOON` (M1). Het concept bewaart nu ook link, foto en plek (`schoonApparaat`). Wel nieuw in `validate.js`: `MAX_FOTO`, `FOTO_TYPES` en `fotoSoort`, dus ook de worker is veranderd: Oscar plakt bij het neerzetten meteen deze versie.
+- **Getest:**
+  - `npm test`: 115 groen (was 80). Nieuw: `tests/link.test.mjs` (5), `tests/plek.test.mjs` (9: Google Maps in zeven vormen, OSM, Apple, `geo:`, losse coördinaten, verkorte links, onzin, zoekuitkomsten, labels), `tests/fotomaat.test.mjs` (6: maat van een staande iPhone-foto, pogingen, soort aan de bytes, base64, foto's uit een back-up, welke foto's bij de borden horen), het concept in `validate.test.mjs`, en `tests/worker-foto-zoek.test.mjs` (14): opslaan en ophalen met de juiste headers, geen tweede schrijfactie, 404 zonder cache, precies 1,5 MB mag en 1 byte meer niet (ook een te grote `Content-Length`), alleen jpeg/png/webp en de bytes moeten kloppen, slechte id's, methodes, CORS, mislukte KV; zoeken met de juiste vraag en User-Agent, uit het geheugen bij dezelfde vraag, `ZOEKEN=uit`, alleen met de juiste `Origin`, 2 tot 200 tekens, de Cache API heen en terug, minstens 1 s tussen vragen aan Nominatim (en "even druk" bij een lange rij), en nette fouten als Nominatim druk of onbereikbaar is.
+  - **Ter controle bewust kapotgemaakt:** zonder de bytes-controle gaat de foto-test rood; met 0 ms pauze gaat de zoek-test rood. Daarna weer heel gemaakt.
+  - **Convergentie:** de drie telefoons zetten nu ook willekeurig links, foto's en plekken (erop, eraf, anders), en de test controleert dat die echt in de eindstand zitten. Nog steeds exact dezelfde stand op alle telefoons en de server (1500 rondes: 392 verouderde leesacties, 87 mislukte en 878 geslaagde schrijfacties).
+  - **KV op een drukke dag** (`tests/kv-dag.test.mjs`, nu met foto's: bij 15% van de gewone bewerkingen een foto, uit een eigen PRNG zodat de rest van de dag gelijk blijft): **381 KV-schrijfacties**, waarvan 38 voor foto's, en **2.494 KV-leesacties**, waarvan 128 voor foto's (één keer ophalen per telefoon). De 343 schrijfacties voor briefjes zijn precies die van M3. Gratis plan: 1.000 schrijfacties per dag, samen met Parkenjacht.
+  - **Rekentijd** (Node op deze cloudcomputer, niet op Cloudflare): een foto van 400 KB opslaan ± 0,7 ms, ophalen ± 0,4 ms. De grens is 10 ms.
+  - `npm run lint`: schoon.
+  - `npm run rooktest`: 219 van 219 (was 152). Nieuw (67): link (linkveld met focus, `javascript:` geweigerd, Enter bewaart, concept met link na herladen, "🔗 ah.nl" op het briefje, klikbare link met `target=_blank` en `noopener`, weghalen met het kruisje), foto (polaroid op het vel en het bord, JPEG in IndexedDB, **de staande iPhone-foto staat rechtop: 1200 × 1600**, kleiner dan 400 KB, niet in localStorage, een foto vol detail ook onder 400 KB, HEIC-melding), Gedaan met foto en het plakboek, back-up met en zonder foto's en terugzetten op een nieuwe telefoon, de vier manieren van plek kiezen (tikken, slepen, mijn locatie via nep-GPS, verkorte en lange Google-link zonder zoekdienst, zoeken zonder sync-server, typen zoekt niet, zoeken met User-Agent en bronvermelding, ≥ 1 s tussen twee zoekopdrachten in de app, één uitkomst meteen gekozen, `ZOEKEN=uit`), de kaart-tab (punaises in de categoriekleur, bronvermelding, tegels van OSM, zoomknoppen in het Nederlands, alles in beeld, openen met het toetsenbord, gedaan verdwijnt en komt grijs terug met "Gedaan ook", filters, niks gevonden, "Op de kaart" met het briefje in het midden), en samen: bij het delen gaan de foto's naar de worker, Tara ziet en bewaart Oscars foto, offline blijft hij zichtbaar, een offline gemaakte foto wacht in de wachtrij (ook na herladen) en vertrekt zodra je online bent, en een foto die nog niet geüpload is, geeft eerst een leeg polaroidje en verschijnt later alsnog. Plus: "Nu bijwerken" laat IndexedDB staan.
+  - **Aangepast in de rooktest, met reden:** de kaarttegels worden in elke browser van de test afgevangen met een effen tegel (deze computer haalt niets bij OpenStreetMap). Bestaande controles zijn niet veranderd.
+  - **Fouten die de tests vingen:** (1) een punaise op de kaart ging met het toetsenbord niet open (Leaflet opent met Enter alleen een popup). (2) Een kaart weghalen terwijl hij nog inzoomde (link plakken en meteen "Klaar") gaf een fout uit Leaflet; nu stopt de app de animatie en ruimt de kaart pas daarna op. (3) Niet alle punaises stonden helemaal in beeld: een punaise steekt 45 px boven zijn punt uit, en de kaart schoof nog na. Nu meer ruimte boven en de eerste keer zonder animatie. (4) Mijn eigen nieuwe tests hadden drie fouten (een standaardwaarde, een id die toch geldig was, en een import die het bord ernaast zet in plaats van erover), die ik heb rechtgezet zonder te veranderen wát ze controleren.
+  - **Zelf gezien in screenshots:** met het toetsenbord open (± 420 px hoog) en een foto op het vel viel "Prikken!" eronder; nu begint het tekstvak met 3 regels en groeit het mee waar ruimte is (nagemeten: "Prikken!" eindigt op 415 px). Verder: "(mag leeg blijven)" was slecht leesbaar op het donkere doek, en de zoomknoppen van Leaflet hadden Engelse uitleg ("Zoom in"); allebei rechtgezet.
+- **Screenshots** in `docs/m4-kaart/` (390 px): bord, open, op-de-kaart, kaart, vel, plek-zoeken, plek-gekozen, doos, backup. Opnieuw maken: `npm run screenshots:m4`. **Let op:** de kaarttegels in die plaatjes zijn nep (deze computer kan OpenStreetMap niet bereiken); op de telefoon staat daar de echte kaart.
+- **Niet getest:** alles op echte telefoons (zie de testlijst hieronder): het fotomenu en de camera op de iPhone, een echte HEIC, of Safari de foto ook rechtop zet (uit mijn kennis wel, sinds Safari 13.1), "Mijn locatie" met een echte GPS en de toestemmingsvraag, de echte OSM-tegels en het slepen met een vinger, het deelmenu met een back-up van een paar MB, de echte Nominatim (deze sessie kan er niet bij; de rooktest gebruikt een nep-Nominatim met dezelfde soort antwoorden), de Cache API op Cloudflare, en de echte worker (staat nog niet).
+
+### Te testen op de telefoon (na de deploy van M4)
+
+Punten 1 t/m 11 kunnen ook zonder worker. Punten 12 t/m 14 pas als de worker staat (dan werken zoeken en foto's delen).
+
+1. Na het bijwerken: verschijnt één keer "Er hangt iets nieuws op het prikbord!" met versie 4?
+2. **Link:** schrijfvel → 📎 Link → plak een link (bijv. een recept uit Safari) → OK. Staat "🔗 domein" op het briefje? Open het briefje en tik op de link: opent hij?
+3. **Foto:** Foto (het stukje plakband) → kies een **staande** foto uit je fotobibliotheek. Staat hij rechtop? Hoe lang zie je het ⏳ bij het verkleinen? Probeer ook de camera.
+4. **HEIC:** staat je iPhone op "Hoge efficiëntie" (Instellingen → Camera → Formaten)? Dan zijn je foto's HEIC. Werkt kiezen gewoon? Ik verwacht van wel, maar heb het niet kunnen testen.
+5. **Gedaan met foto:** open een briefje → Gedaan! → Foto erbij → In de doos. Staat het polaroidje in het plakboek?
+6. **Plek, tikken en slepen:** 🗺️ Plek → tik op de kaart, en versleep de punaise met je vinger. Schuift de kaart niet mee terwijl je de punaise sleept? Werkt knijpen om te zoomen in het kaartje?
+7. **Mijn locatie:** vraagt de iPhone om toestemming, en klopt de plek daarna?
+8. **Link plakken:** in Google Maps → Delen → Link kopiëren → plakken in het zoekvakje. Vaak is dat een verkorte `maps.app.goo.gl`-link; dan zie je uitleg. Welke soort link geeft jouw Google Maps? Laat het me weten, dan kijk ik of ik er meer mee kan. Probeer ook Apple Kaarten → Deel → Kopieer.
+9. **Kaart-tab:** echte kaart, punaises in de kleur van de categorie, tik opent het briefje. Zet "✅ Gedaan ook" aan: grijze punaises?
+10. **Op de kaart:** open een briefje met een plek → 🗺️ Op de kaart. Sta je ingezoomd op dat briefje?
+11. **Toetsenbord:** schrijfvel met een foto erop, toetsenbord open. Staat "Prikken!" nog boven het toetsenbord?
+12. **Zoeken** (met worker): typ "Mauritshuis" → Zoek. Komen er uitkomsten, en zet een tik de punaise neer?
+13. **Foto's samen** (met worker): Tara ziet jouw foto's. Vliegtuigmodus aan, een briefje met foto prikken, vliegtuigmodus uit: komt hij bij Tara?
+14. **Back-up met foto's:** Meer → Back-up maken → Met foto's → Bewaar in Bestanden. Hoe groot werd hij? Terugzetten op een ander toestel: staan de foto's erbij?
+
 ### M3 (9 nov 2026): samen
 
 - **Gedaan, in volgorde van de spec (§8):**
@@ -176,10 +247,14 @@ Dit staat ook bovenin `proxy/prikbord-sync-worker.js`. Het is gratis en kost ± 
 1. Ga naar dash.cloudflare.com en log in (hetzelfde account als Parkenjacht mag).
 2. **Opslag maken:** ga naar **Workers KV** (`https://dash.cloudflare.com/?to=/:account/workers/kv/namespaces`) → **Create instance**, noem hem `prikbord` → **Create**. Neem niet die van Parkenjacht: zo werkt de een gewoon door als de ander stuk gaat. Kies geen "KV Instant" (een bèta die we niet nodig hebben).
 3. **Worker maken:** **Workers & Pages** (`https://dash.cloudflare.com/?to=/:account/workers-and-pages`) → **Create application** → **Start with Hello World!** → **Get started**, noem hem `prikbord` en klik **Deploy**.
-4. **De code erin:** open het bestand op GitHub: `https://github.com/oscardillewaard-ai/prikbord/blob/ccr-fc257cf9-70gzqa/proxy/prikbord-sync-worker.js` en kopieer alles (met de knop "Copy raw file", of via "Raw" en dan alles selecteren). Open in Cloudflare bij je worker de code-editor (**Edit code**), haal alles weg, plak, en klik **Deploy**.
+4. **De code erin:** open het bestand op GitHub: `https://github.com/oscardillewaard-ai/prikbord/blob/main/proxy/prikbord-sync-worker.js` als M4 gedeployd is, en anders `https://github.com/oscardillewaard-ai/prikbord/blob/ccr-80bc7fbf-gcraqb/proxy/prikbord-sync-worker.js` (de versie mét foto's en zoeken). Kopieer alles (met de knop "Copy raw file", of via "Raw" en dan alles selecteren). Open in Cloudflare bij je worker de code-editor (**Edit code**), haal alles weg, plak, en klik **Deploy**.
 5. **Opslag koppelen:** open de worker → tabblad **Bindings** → **Add binding** → **KV namespace** → **Add binding**. Variable name: `PRIKBORD`, kies de namespace `prikbord` en klik **Add binding**.
-6. **Controleren:** open het adres van de worker in je browser. Ik verwacht `https://prikbord.oscar-dillewaard.workers.dev`, net als bij Parkenjacht, maar dat is een aanname. Daar staat in gewone taal of alles klopt. Met `?schrijftest=1` erachter test hij ook schrijven (dat kost één van de 1.000 schrijfacties per dag).
-7. **Stuur me het adres**, dan zet ik het als `DEFAULT_SYNC_URL` in de app. Daarna hoeft niemand meer een adres in te vullen.
+6. **Controleren:** open het adres van de worker in je browser. Ik verwacht `https://prikbord.oscar-dillewaard.workers.dev`, net als bij Parkenjacht, maar dat is een aanname. Daar staat in gewone taal of alles klopt, ook of plekken zoeken aan staat. Met `?schrijftest=1` erachter test hij ook schrijven (dat kost één van de 1.000 schrijfacties per dag).
+7. **Stuur me het adres**, dan zet ik het als `DEFAULT_SYNC_URL` in de app. Daarna hoeft niemand meer een adres in te vullen, en kan iedereen plekken zoeken.
+
+**Zoeken uitzetten** (bijv. als Nominatim erom vraagt, of als je het niet wilt): open de worker → **Settings** → **Variables and Secrets** → **Add**. Type: Text, Variable name: `ZOEKEN`, Value: `uit` → **Deploy**. Nagelezen in de docs op 9 nov 2026. De app zegt dan "Zoeken staat even uit"; tikken op de kaart, je locatie en een link plakken werken gewoon. Weer aan: de variabele weghalen en Deploy.
+
+**Over Nominatim:** zoeken gaat via de openbare zoekdienst van OpenStreetMap. Hun regels (operations.osmfoundation.org/policies/nominatim) zeggen dat dat alleen mag als jij als maker er bewust voor kiest en zelf verantwoordelijk bent voor het naleven. De app houdt zich aan wat er staat (zie §6.5 en A6), maar die keuze ligt bij jou.
 
 **Als het ooit knelt:** in het dashboard van de worker staat onder Metrics hoeveel verzoeken er zijn, en onder Metrics → Errors → Invocation Statuses of er verzoeken over de 10 ms rekentijd gingen ("Exceeded CPU Time Limits"). Bij de KV-namespace staat, voor zover ik weet, hoeveel schrijfacties er per dag zijn. Gaat het mis, dan raakt er niets kwijt: de app houdt de wijziging in het verschil en probeert het bij elke peiling opnieuw, met een oranje bolletje. Dan zijn er drie uitwegen: de opgeslagen stand niet opnieuw controleren (~20% sneller), het bord in KV opknippen (meer werk), of het betaalde plan van Cloudflare ($5 per maand, uit mijn kennis, niet nagelezen).
 
@@ -295,39 +370,38 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - Oscar koos voor een eigen repo. De docs zijn overgezet naar `oscardillewaard-ai/prikbord`, met A3 erbij.
 - In Tezt: cache-fix voor Tarapp en Parkenjacht (`3cf0159`), getest in Chromium (vóór en na).
 
-## Voor M4: handig om te weten
+## Voor M5: handig om te weten
 
-- **Nieuwe velden gaan vanzelf mee.** Wat in `VELD_SCHOON` (`validate.js`) staat, wordt per veld gesynchroniseerd; `link`, `foto` en `plek` staan er al. Pas na elke wijziging in `validate.js` of `merge.js` `npm run worker` toe, en laat Oscar de nieuwe worker in Cloudflare plakken. Anders gooit de oude worker een nieuw veld stilletjes weg (`tests/worker.test.mjs` bewaakt alleen dat het bestand in de repo klopt, niet wat er in Cloudflare staat).
-- **Foto-endpoints** horen in `proxy/prikbord-worker-kern.js`: `PUT /bord/<code>/foto/<id>` (max. 1,5 MB, alleen jpeg, png en webp) en `GET` met `Cache-Control: public, max-age=31536000, immutable`, één KV-sleutel per foto (bijv. `foto:<code>:<id>`). Elke foto is één schrijfactie: tel dat mee bij de 343 van een drukke dag. De worker-tests voor de fotolimieten (§9) staan nog open. `/zoek` met de Cache API en `ZOEKEN=uit` ook.
-- **Uploads en herladen:** een foto-upload moet `ui.bezig` ophogen, zodat er niet midden in herladen wordt (regel 5). De service worker laat andere sites al met rust, dus foto's van de worker moet de app zelf in IndexedDB bewaren (§6.4).
-- **Bijwerken na een sync:** `naSync` → `tekenNaSync` → `render()` (keyed, zoals in M2). Een briefje dat groot openligt, wordt opnieuw getekend als het veranderde (`ui.grootVan`). Een polaroidje dat nog laadt, moet dat overleven.
-- **Testen:** `tests/hulp.mjs` heeft `telefoon()` (een nep-telefoon met de echte motor tegen de echte worker), de rooktest start de worker lokaal met `startWorker()` uit `scripts/nep-worker.mjs`, en `npm run nep-worker` doet dat op poort 8787 om zelf te proberen (vul bij "Bord delen" `http://localhost:8787` in).
-- **Rekentijd:** foto's worden niet samengevoegd, dus die zijn goedkoop. Een bord-PUT kost rekentijd naar de grootte van het hele bord (zie het logboek van M3).
-- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft. De worker staat nog niet (besluit 9 nov: M4 mag al beginnen). Zet Oscar hem pas na M4 neer, dan plakt hij meteen de versie met de foto-endpoints; anders plakt hij die later nog een keer (2 minuten werk, de briefjes in KV blijven staan).
-- **Kaart en plekken:** de zoekfunctie mag alleen via de eigen worker (§6.5), met minstens 1 s tussen twee zoekopdrachten in de app én in de worker.
+- **Foto's laden nu allemaal meteen**, ook buiten beeld: `polaroidHtml()` start `laadFoto()` voor elk polaroidje dat getekend wordt (eerst IndexedDB, dan de worker). Voor §8 M5 ("foto's pas laden als ze in beeld komen"): een `IntersectionObserver` op `.polaroid.leeg[data-foto]` die pas dan `laadFoto()` aanroept. De object-URL's (`fotoUrls`) worden nooit vrijgegeven; bij 300 briefjes met foto's kan dat geheugen kosten op een oude telefoon.
+- **Hoogte van een briefje met foto:** het polaroidje heeft een vaste vierkante verhouding (`aspect-ratio: 1`), dus het bord verspringt niet als een foto binnenkomt. Een briefje met foto is wel veel hoger; kijk bij de prestaties of netjes-rommelig met 300 briefjes (een deel met foto) vloeiend blijft.
+- **Kaart:** bij elke `render()` op de kaart-tab worden alle punaises opnieuw gezet (`zetKaartPunaises`, `clearLayers`). Met een paar honderd plekken is dat waarschijnlijk prima, maar niet gemeten. Punaises die dicht bij elkaar liggen, overlappen bij uitzoomen (geen clustering).
+- **Toegankelijkheid (M5):** punaises op de kaart openen met Enter en spatie; het polaroidje heeft `alt=""` met een verborgen "met foto" in de tekst van het briefje. In de plek-kiezer kun je met het toetsenbord zoeken, een link plakken of je locatie gebruiken, maar niet op de kaart tikken. De papierkleuren en de kleine labels ("🔗 ah.nl") nog nalopen op leesbare inkt.
+- **Worker:** `validate.js` is in M4 veranderd (`MAX_FOTO`, `FOTO_TYPES`, `fotoSoort`) en de kern heeft foto's en zoeken gekregen. Wie `validate.js` of `merge.js` aanpast: `npm run worker`, en Oscar plakt de nieuwe versie in Cloudflare.
+- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft. Zolang het leeg is, kan op een bord dat niet gedeeld is alleen gezocht worden als je eerder een adres invulde.
+- **Testen:** `npm run nep-worker -- --nep-zoek` start de worker op poort 8787 met een nep-Nominatim (vaste plekken). De rooktest vangt kaarttegels af met een effen tegel (`TEGEL` in `scripts/rooktest.mjs`) en duurt nu ± 2,5 minuut. `npm run screenshots:m4` maakt de plaatjes in `docs/m4-kaart/` (met nep-tegels).
+- **Nog open bij Oscar:** akkoord op M4 en deploy, A6 (Nominatim-pauze per worker-exemplaar), de worker neerzetten (met de M4-versie), de tests met twee telefoons uit M3 en de testlijst van M4.
 
-## Startprompt voor M4
+## Startprompt voor M5
 
 Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt":
 
 ```
-Prikbord, mijlpaal M4 (link, foto en kaart). Je werkt in de repo oscardillewaard-ai/prikbord.
-1. Merge eerst het werk uit M3 in je werkbranch (verandert niets als het al op main staat):
-   git fetch origin ccr-fc257cf9-70gzqa && git merge origin/ccr-fc257cf9-70gzqa
+Prikbord, mijlpaal M5 (afronden). Je werkt in de repo oscardillewaard-ai/prikbord.
+1. Merge eerst het werk uit M4 in je werkbranch (verandert niets als het al op main staat):
+   git fetch origin ccr-80bc7fbf-gcraqb && git merge origin/ccr-80bc7fbf-gcraqb
 2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (vooral A3:
-   eigen repo, andere paden; A4 en A5: de worker bouw je met npm run worker) en
-   docs/prikbord-voortgang.md (besluiten, aannames, logboek M1 t/m M3 en
-   "Voor M4: handig om te weten").
-3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor Leaflet uit
-   public/parken/vendor/ (BSD-2, licentiebestand mee) en de kaart van Parkenjacht.
-   De echte worker staat nog niet (Oscar zet hem later neer, zie "De worker
-   neerzetten" in de voortgang). Test met de nep-worker. Geeft Oscar het adres,
-   zet het dan als DEFAULT_SYNC_URL in public/js/app.js.
-4. Doe M4 (§8 van de spec): link op een briefje, foto's (§6.4: verkleinen,
-   IndexedDB, uploadwachtrij, foto-endpoints in de worker met tests voor de
-   limieten), de kaart-tab en plekken kiezen op vier manieren (§5.9), met
-   zoeken via Nominatim alleen via de worker (§6.5). Draai voor elke commit
-   npm test, npm run lint en npm run rooktest. Werk aan het eind
-   docs/prikbord-voortgang.md bij, met een startprompt voor M5.
+   eigen repo, andere paden; A5: de worker bouw je met npm run worker; A6: de
+   Nominatim-pauze) en docs/prikbord-voortgang.md (besluiten, aannames, logboek
+   M1 t/m M4, de testlijsten en "Voor M5: handig om te weten").
+3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor de README-secties van
+   Tarapp en Parkenjacht. Staat de echte worker nog niet, test dan met de
+   nep-worker. Geeft Oscar het adres, zet het dan als DEFAULT_SYNC_URL in
+   public/js/app.js.
+4. Doe M5 (§8 van de spec): de README-sectie in de stijl van Tarapp en
+   Parkenjacht, de changelog, prestaties (met 300 briefjes blijft scrollen
+   vloeiend op een gewone telefoon; foto's pas laden als ze in beeld komen),
+   toegankelijkheid (labels, focus, leesbare inkt op elke papierkleur) en een
+   testlijst voor Oscar. Draai voor elke commit npm test, npm run lint en
+   npm run rooktest. Werk aan het eind docs/prikbord-voortgang.md bij.
    ⏸ Daarna wacht je op akkoord van Oscar.
 ```

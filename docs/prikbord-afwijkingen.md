@@ -113,3 +113,35 @@ worden hier niet herhaald.
   willekeurige borden controleert dat worker en app hetzelfde samenvoegen.
   Dat werkt ook, maar dan pas je alles twee keer aan.
 - **Status:** akkoord (Oscar, 9 nov 2026: "Akkoord met a5").
+
+## A6. De pauze van 1 seconde voor Nominatim geldt per worker-exemplaar
+
+- **Waar:** `proxy/prikbord-worker-kern.js`, `GET /zoek` (de rij in `beurt()`).
+- **Wat de spec zegt (§6.5):** "Max. 1 verzoek per seconde, en dat geldt
+  voor alle gebruikers samen. […] zet daarnaast in de app en in de worker
+  minstens 1 s tussen twee zoekopdrachten."
+- **Wat er gebouwd is:** de app wacht minstens 1 s tussen twee zoekopdrachten
+  (en zoekt alleen na een tik op Zoek). De worker zet alle vragen aan
+  Nominatim in één rij met minstens 1 s ertussen, onthoudt elk antwoord een
+  week (Cache API van Cloudflare, plus een kleine cache in het geheugen), en
+  zegt "even druk" als er al 4 zoekopdrachten wachten. Getest in
+  `tests/worker-foto-zoek.test.mjs` (6 tegelijk: 4 netjes met ≥ 1 s ertussen,
+  2 krijgen "even druk") en in de rooktest (de app wacht ≥ 1 s).
+- **Waarom niet helemaal zoals de spec:** die rij en dat geheugen gelden per
+  exemplaar van de worker. Uit mijn kennis van Cloudflare (niet nagelezen):
+  Cloudflare kan op verschillende plekken in de wereld tegelijk een exemplaar
+  draaien, elk met een eigen geheugen. Zoeken Oscar in Nederland en een
+  vriend in Portugal in precies dezelfde seconde, dan kunnen er dus twee
+  vragen tegelijk naar Nominatim gaan. Voor een paar mensen die af en toe op
+  een knop tikken, is dat in de praktijk verwaarloosbaar. Een harde,
+  wereldwijde grens kan alleen met een gedeelde teller, en KV kan dat niet
+  (uiteindelijk consistent, en schrijfacties zijn schaars).
+- **Alternatief:** een Durable Object als wereldwijde rij (één plek die alle
+  zoekopdrachten doorlaat). Dat kan op het gratis plan, alleen met de
+  SQLite-opslag (nagelezen op developers.cloudflare.com/durable-objects/platform/pricing
+  op 9 nov 2026). Het is wel meer werk en een extra onderdeel om neer te
+  zetten; voor zover ik weet vraagt een Durable Object een "migratie" die je
+  niet zomaar met plakken in de editor van het dashboard regelt (niet
+  nagelezen). Of: zoeken helemaal uit (`ZOEKEN=uit`), dan blijven de andere drie
+  manieren werken.
+- **Status:** voorgesteld (wacht op Oscar).

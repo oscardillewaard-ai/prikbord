@@ -1073,6 +1073,7 @@ ok('kaart: een punaise per briefje met een plek', (await pins.count()) === 4)
 ok('kaart: de punaise heeft de kleur van de categorie (Dagje uit = zon)', (await L.p.locator('#kaart .kaart-pin.papier-zon').count()) === 2 && (await L.p.locator('#kaart .kaart-pin.papier-wit').count()) === 1)
 ok('kaart: bronvermelding "© OpenStreetMap-bijdragers" zichtbaar', await L.p.locator('#kaart .leaflet-control-attribution').isVisible() && (await L.p.locator('#kaart .leaflet-control-attribution').innerText()).includes('© OpenStreetMap-bijdragers'))
 ok('kaart: tegels van tile.openstreetmap.org', tegelVragen > tegelsVoor)
+ok('kaart: zoomknoppen met Nederlandse uitleg', (await L.p.getAttribute('#kaart .leaflet-control-zoom-in', 'title')) === 'Inzoomen' && (await L.p.getAttribute('#kaart .leaflet-control-zoom-out', 'title')) === 'Uitzoomen')
 ok('kaart: alle punaises in beeld', await L.p.evaluate(() => [...document.querySelectorAll('#kaart .kaart-pin')].every((el) => {
   const r = el.getBoundingClientRect()
   const k = document.querySelector('#kaart').getBoundingClientRect()

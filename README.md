@@ -24,8 +24,10 @@ npm run rooktest     # Playwright-rooktest in Chromium
 npm run icons        # iconen uit scripts/prikbord-icon.svg
 npm run screenshots  # schermen en filmstrip op 390 px in docs/m1-stijl/
 npm run screenshots:m2  # het bord van M2 (filters, doos, vrij …) in docs/m2-bord/
+npm run screenshots:m4  # link, foto en kaart (M4) in docs/m4-kaart/ (met nep-kaarttegels)
 npm run worker       # bouwt proxy/prikbord-sync-worker.js (zie hieronder)
 npm run nep-worker   # de sync-worker op http://localhost:8787, met KV in het geheugen
+npm run nep-worker -- --nep-zoek  # idem, met een nep-zoekdienst (zonder internet)
 ```
 
 ## Samen: de sync-worker
@@ -40,8 +42,18 @@ niet het gebouwde bestand; `tests/worker.test.mjs` waarschuwt als je het
 bouwen vergat. Het adres van de worker komt als `DEFAULT_SYNC_URL` in
 `public/js/app.js`.
 
+De worker bewaart ook de foto's van gedeelde borden (één KV-sleutel per foto,
+max. 1,5 MB, alleen jpeg, png en webp) en zoekt plekken op naam via Nominatim,
+de zoekdienst van OpenStreetMap (alleen na een tik op Zoek, hooguit één keer
+per seconde, antwoorden onthouden). Zoeken staat uit met de variabele
+`ZOEKEN = uit` in Cloudflare; de andere manieren om een plek te kiezen werken
+dan gewoon.
+
 Gegevens staan in `localStorage` onder `prikbord.v1` (die naam verandert nooit
-meer). De groepscodes van gedeelde borden staan apart onder `prikbord.sync`,
+meer). Foto's staan in IndexedDB (database `prikbord`, stores `fotos` en
+`wachtrij`), want alle apps op dit domein delen één kleine localStorage. De
+kaart gebruikt Leaflet 1.9.4 uit `public/vendor/` (BSD-2, zie
+`public/vendor/LEAFLET-LICENSE`) met tegels van OpenStreetMap. De groepscodes van gedeelde borden staan apart onder `prikbord.sync`,
 buiten de back-up. Bij een release: `APP_VERSION` in `public/js/app.js` en `CACHE` in
 `public/sw.js` ophogen en bovenaan `CHANGELOG` in `app.js` een regel
 toevoegen. `tests/sw.test.mjs` bewaakt dat ze bij elkaar passen.

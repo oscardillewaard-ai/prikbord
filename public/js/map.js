@@ -31,7 +31,9 @@ export function laadLeaflet() {
 
 // Een kaart in `el`, met tegels en een zichtbare bronvermelding.
 export function maakKaart(L, el, { midden = NL.midden, zoom = NL.zoom } = {}) {
-  const kaart = L.map(el, { zoomControl: true, attributionControl: true, worldCopyJump: true, tapTolerance: 12 }).setView(midden, zoom)
+  const kaart = L.map(el, { zoomControl: false, attributionControl: true, worldCopyJump: true, tapTolerance: 12 }).setView(midden, zoom)
+  // Zoomknoppen met Nederlandse uitleg (Leaflet zegt "Zoom in").
+  L.control.zoom({ zoomInTitle: 'Inzoomen', zoomOutTitle: 'Uitzoomen' }).addTo(kaart)
   kaart.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>')
   L.tileLayer(TEGELS, { maxZoom: 19, attribution: BRON, crossOrigin: false }).addTo(kaart)
   return kaart
