@@ -24,7 +24,7 @@ import { fotosVan, naarBase64, schoonFotos } from './fotomaat.js'
 import * as fotos from './photos.js'
 import { laadLeaflet, maakKaart, punaise, kiesPunaise, pasInBeeld, ruimOp, NL } from './map.js'
 
-export const APP_VERSION = '4' // ophogen bij elke release, samen met CACHE in sw.js
+export const APP_VERSION = '5' // ophogen bij elke release, samen met CACHE in sw.js
 
 // Adres van de sync-worker (proxy/prikbord-sync-worker.js). Leeg = je vult het
 // zelf in bij "Bord delen". Ingevuld = alleen nog "Maak een koppel-link".
@@ -34,6 +34,15 @@ const DEFAULT_SYNC_URL = ''
 // Nieuwste bovenaan. Bij een release: APP_VERSION ophogen, CACHE in sw.js
 // ophogen en hier een regel toevoegen.
 const CHANGELOG = [
+  {
+    v: 5,
+    items: [
+      '🚀 Lekker vlot, ook met een propvol bord: foto’s laden pas als ze in beeld komen, en op het bord staat een klein vierkantje in plaats van de hele foto. Scrollen blijft soepel, ook met honderden briefjes',
+      '⌨️ Met een toetsenbord: in de vrij-modus schuif je een briefje met de pijltjes, en bij een plek kiezen zet Enter de punaise neer',
+      '👓 De kleine lettertjes op het papier zijn wat donkerder, zodat je ze op elke kleur goed leest',
+      '🗣️ Met een schermlezer hoor je bij het hartje hoeveel hartjes er zijn, en na het sluiten van een venster sta je weer waar je was',
+    ],
+  },
   {
     v: 4,
     items: [

@@ -5,7 +5,8 @@ bestand is het geheugen tussen die chats. Leidend blijft
 `docs/prikbord-spec.md`. Afwijkingen staan in `docs/prikbord-afwijkingen.md`;
 lees vooral A3 (eigen repo, andere paden), A4 (categorieën nooit wissen), A5
 (de worker wordt gebouwd met `npm run worker`) en A6 (de Nominatim-pauze geldt
-per worker-exemplaar; voorgesteld).
+per worker-exemplaar; voorgesteld). Alle mijlpalen M0 t/m M5 zijn gebouwd; zie
+"Na M5: handig om te weten" onderaan.
 
 **Bij een nieuwe chat:**
 - Kies de cloudomgeving **"Tezt"**. Die laat naast de package registries ook
@@ -27,7 +28,7 @@ per worker-exemplaar; voorgesteld).
 | M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
 | M3 samen | klaar en gedeployd (9 nov, samen met M4), staat op `main`. De worker staat nog niet; Oscar zet hem neer en test dan met twee telefoons | `ccr-fc257cf9-70gzqa` |
 | M4 link, foto en kaart | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
-| M5 afronden | nog niet begonnen | |
+| M5 afronden | klaar (9 nov), **wacht op akkoord van Oscar**; nog niet gedeployd. Testlijst voor de telefoon hieronder | `ccr-f626df03-9jb4ek` |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
 
@@ -76,6 +77,18 @@ per worker-exemplaar; voorgesteld).
 - **Durable Objects** (developers.cloudflare.com/durable-objects/platform/pricing, 9 nov 2026): ook op het gratis plan, alleen met SQLite-opslag. Zie het alternatief bij A6.
 
 ## Aannames die ik aanhoud (tenzij Oscar anders zegt)
+
+Nieuw in M5 (afronden):
+
+- **"Pas laden als ze in beeld komen"** = als een polaroidje binnen 1200 px van het scherm komt (ongeveer anderhalf scherm vooruit). Met 400 px marge zag je bij snel scrollen vaker lege polaroidjes, en haperde het meer (gemeten, zie het logboek). Foto's die klaar zijn, verschijnen samen zodra het scrollen 150 ms stilvalt (en anders na hooguit 0,7 s), want elke losse foto die tíjdens het scrollen verschijnt, laat de browser het hele bord opnieuw tekenen.
+- **Duimnagel:** op het bord, in de Gedaan-doos en op het schrijfvel een vierkant van 480 × 480 uit het midden van de foto (zoals het polaroidje hem toch al toont), JPEG 0,8, ± 30 KB. Groot geopend de hele foto (ook die van "Gedaan!"). Eén keer gemaakt en bewaard in IndexedDB (store `duimen`, alleen op deze telefoon, niet in de back-up en niet naar de worker). Bij het maken één tegelijk, zodat het scrollen er niet onder lijdt. In vrij, helemaal ingezoomd (2,5×), is de duimnagel iets minder scherp dan de hele foto; open het briefje voor de scherpe versie.
+- **IndexedDB versie 2** (de store `duimen` erbij). Een tabblad met de oude versie (4) laat de database los zodra de nieuwe hem opent (dat zat er al in sinds M4). Getest in de rooktest: een telefoon met foto's uit versie 4 houdt ze, en krijgt duimnagels.
+- **Hele foto's:** hooguit 8 tegelijk in het geheugen (object-URL's); wat niet meer op het scherm staat, wordt vrijgegeven. Duimnagels blijven (ze zijn klein).
+- **Vrij met het toetsenbord:** een pijltje = 20 eenheden (± 15 px bij zoom 1), met Shift 80. Elke stap is een gewone wijziging (dus gebundeld naar de anderen), het briefje komt bovenop de stapel en houdt de focus. Schermlezers horen via `aria-describedby` hoe het werkt. Geen "tok" per stap (dat werd een mitrailleur).
+- **Plek kiezen met het toetsenbord:** de kaart heeft `role="application"` (anders mag `aria-label` er niet op, en geven schermlezers de pijltjes niet door). Pijltjes schuiven, + en − zoomen (dat doet Leaflet al), Enter of spatie zet de punaise in het midden.
+- **Contrastnormen:** de handschriftinkt minstens 7 : 1 (AAA), want een handschrift leest lastiger; kleine lettertjes minstens 4,5 : 1 (AA). Voor de chips en tabjes is gerekend met de gemiddelde kurkkleur, omdat het kurk gevlekt is: een benadering, geen meting per pixel. De vrolijke kleuren (punaises, nieuw-stickertje) zijn niet veranderd.
+- **axe-core** (4.14.0, MPL-2.0) is een devDependency: het draait alleen in de rooktest en de deploy-workflow installeert het mee (`npm ci`), maar het komt niet in `public/`. De regels van WCAG 2.2 A en AA plus de "best practices" van axe. axe kan geen tekst controleren die op een achtergrondafbeelding staat (het papier, het kurk); daarvoor is `tests/contrast.test.mjs`.
+- **Het proefbord** (`docs/m5/prikbord-backup-proefbord-300.json`) is een gewone back-up met één bord "🧪 Proefbord (300)": 300 briefjes van "Ik", Tara en Sam, 40 met een getekende foto (1600 × 1200, even groot in beeldpunten als een echte foto, maar een klein bestand). Terugzetten voegt het toe naast je eigen borden. Opnieuw maken: `node scripts/proefbord.mjs` (geeft wel een nieuw bord-id, dus dan staat het er twee keer).
 
 Nieuw in M4 (link, foto en kaart):
 
@@ -171,6 +184,56 @@ Uit M0:
 - **`npm run lint` in Tezt is rood** door Tarapp (sinds `9d838b1`). Niet aangepakt. De deploy van Tezt draait geen lint.
 
 ## Logboek
+
+### M5 (9 nov 2026): afronden
+
+- **Gedaan, in volgorde van de spec (§8):**
+  - **README:** helemaal herschreven in de stijl van de secties van Tarapp en Parkenjacht (wat de app doet, installeren, de vaste afspraken, gegevens en sleutels, de sync-worker, kaart, letters en iconen, het release-ritueel en de deploy, ontwikkelen en testen). "De volledige uitleg volgt in M5" is weg.
+  - **Changelog:** versie 5 (`APP_VERSION`, `CACHE` = `prikbord-v5`, `CHANGELOG`), met vier vrolijke regels. Plaatje: `docs/m5/wat-is-er-nieuw-v5.jpg`. Geen nieuwe bestanden in `public/`, dus `SHELL` is gelijk gebleven.
+  - **Prestaties:** gemeten met een nieuw meetscript (`npm run prestaties`, `scripts/prestaties.mjs`, bord uit `scripts/vol-bord.mjs`): 300 briefjes (60 met foto, 20% met link, 15% met plek, hartjes van drie mensen, meestal korte en soms lange teksten), op 390 × 844 met 3× scherpte, CPU 4× vertraagd, en dan 12.000 px scrollen met een aanraakgebaar (heen en terug). Twee dingen gevonden en opgelost, zie de tabel hieronder:
+    1. **Een hapering van een halve seconde tijdens het scrollen.** Een trace liet zien dat de browser twee keer de stijl van álle 3.695 elementen opnieuw uitrekende (268 ms), daarna de hele pagina opnieuw tekende. Oorzaak: de maat van het toetsenbord (`--vvh`, `--vvtop`, M4) werd bij elke `visualViewport`-scroll op `<html>` gezet, en een variabele op `<html>` raakt elk element. Nu staat hij op het venster zelf, en alleen als hij echt verandert.
+    2. **Alle foto's meteen geladen, in volle grootte**: 60 foto's van 1600 × 1200 = 115 miljoen beeldpunten (± 460 MB als ze allemaal tegelijk uitgepakt zijn; een browser gooit uitgepakte foto's buiten beeld soms weg, dus dit is het slechtste geval). Nu laden ze pas als ze bijna in beeld komen (`IntersectionObserver`), op het bord als duimnagel van 480 × 480, en verschijnen ze samen als het scrollen even stilvalt.
+  - **Toegankelijkheid:** axe-core (WCAG 2.2 AA) in de rooktest op 18 schermen. Op alles samen vond het één ding: de hartjesknop heette "Hartje geven" terwijl er "3" op stond (WCAG 2.5.3, en een aan/uit-knop hoort een vaste naam te hebben). Nu: "Mijn hartje, 3 in totaal" met `aria-pressed`. Zelf gevonden met het toetsenbord: na Meer → Categorieën → Esc was de focus kwijt (het scherm wordt opnieuw opgebouwd); nu komt hij terug op de knop (`houdFocus`). Nieuw: briefjes verplaatsen met de pijltjes in vrij (stond open sinds M2), het briefje met focus komt in vrij vanzelf in beeld, en in de plek-kiezer zet Enter de punaise in het midden (stond open sinds M4).
+  - **Leesbare inkt op elke papierkleur:** nagerekend met de WCAG-formule (`tests/contrast.test.mjs`, leest de kleuren uit `styles.css`). De handschriftinkt haalt op alle 10 kleuren 7,96 tot 11,45 : 1 (AAA is 7). Te laag waren: de tekenteller op het schrijfvel (3,17 : 1 op koraal, nu 5,06), "Geprikt door …" (4,50, nu 5,06) en de groene datum in de Gedaan-doos (4,46, nu 5,21). Ze zijn iets donkerder; het oogt vrijwel hetzelfde.
+  - **Een proefbord** om het op de eigen telefoon te voelen: `docs/m5/prikbord-backup-proefbord-300.json` (zie de testlijst).
+- **Prestaties in getallen** (`npm run prestaties`, elk twee keer gemeten; op deze cloudcomputer zonder GPU, dus om te vergelijken, niet als belofte voor een telefoon):
+
+  | | M4 (nulmeting) | alleen `--vvh` gerepareerd | M5, eerste keer | M5, tweede keer |
+  | --- | --- | --- | --- | --- |
+  | Starten tot het bord staat | 2,4–2,7 s | 2,5–2,7 s | 2,1–2,4 s | 2,4 s |
+  | Langste hapering tijdens scrollen | **567 ms** | 50–67 ms | 133–167 ms | 200 ms |
+  | Frames op tempo (p50 / p95) | 16,7 / 16,8 ms | 16,7 / 16,8 ms | 16,7 / 16,8–33,3 ms | 16,7 / 16,8 ms |
+  | Lange taken (> 50 ms) tijdens 8 s scrollen | 2 | 0–1 | ± 30 | ± 20 |
+  | Foto's na het starten | 60 van 60, **115 MP** | 115 MP | 4, 0,9 MP | 9, 2,1 MP |
+  | Foto's na 12.000 px scrollen | 115 MP | 115 MP | 27, 6,2 MP | 33, 7,6 MP |
+
+  "Eerste keer" = de duimnagels moeten nog gemaakt worden (net bijgewerkt, of foto's van een ander); "tweede keer" = ze liggen klaar. Eerlijk is eerlijk: met álle foto's al vooraf in het geheugen is het scrollen zelf iets strakker (0–2 lange taken), maar dat kost 15 tot 18 keer zoveel fotogeheugen. De lange taken die er nu zijn, komen vooral van het opnieuw indelen van de pagina als er foto's verschijnen ("Layerize" in Chromium, ± 50 ms bij 4× vertraagd) en van het uitpakken van de duimnagels. Het meetscript veegt 8 seconden onafgebroken; een mens pauzeert, en dan verschijnen de foto's in die pauze.
+- **Geprobeerd en niet gedaan, omdat het niets opleverde** (gemeten met `--css`): de schaduw (`drop-shadow`), de gekartelde rand (`clip-path`), de papierkorrel, het scheve polaroidje of álle effecten tegelijk weghalen, het bord een eigen laag geven (`will-change`), `contain: paint`, en `content-visibility: auto` (maakte het zelfs slechter: elk briefje dat in beeld komt, moet dan alsnog getekend worden). Het uiterlijk dat Oscar koos, blijft dus precies zoals het is. Ook een marge van 400 px in plaats van 1200 px en een langere wachttijd voor het samen tonen zijn geprobeerd (400 px haperde meer).
+- **Getest:**
+  - `npm test`: 121 groen (was 115). Nieuw: `tests/contrast.test.mjs` (5: de formule zelf, alle papierkleuren, de inkt op elk papier en boven een lijntje, de kleine lettertjes, chips en tabjes) en de duimnagel in `tests/fotomaat.test.mjs` (het vierkant uit het midden, nooit groter dan de foto).
+  - `npm run lint`: schoon.
+  - `npm run rooktest`: 253 van 253 (was 219). Nieuw, blok 34 (prestaties, 9): de foto bovenaan laadt meteen, als duimnagel van 480 × 480; een foto 3.788 px onder het scherm laadt nog niet (en zijn duimnagel staat nog niet in IndexedDB); hij laadt zodra hij in beeld komt; groot geopend de hele foto van 1600 × 1200; `--vvh` staat niet op `<html>`; en de update vanaf versie 4: een telefoon met een foto in IndexedDB versie 1 houdt hem, de database wordt versie 2 met `duimen`, en de foto krijgt een duimnagel. Blok 35 (toegankelijkheid, 25): axe op 18 schermen (bord, geopend briefje, Gedaan!, schrijfvel, linkveld, plek kiezen, trek, kaart, doos, Meer, categorieën, wie ben ik, delen, wat is er nieuw, alle borden, vrij, de eerste start), de focus na sluiten (briefje en Categorieën), de naam van de hartjesknop, Enter op de kaart, en vrij met de pijltjes (stappen van 20 en 80, focus blijft, bovenop de stapel, `aria-describedby`).
+  - **Ter controle bewust kapotgemaakt:** de oude tekenteller en datumkleur → de contrasttest rood (precies 3,17 en 4,46 op koraal); foto's weer meteen laden, `--vvh` weer op `<html>` en de focus niet terugzetten → 4 controles in de rooktest rood. Daarna weer heel gemaakt.
+  - **Aangepast in bestaande scripts, met reden:** de rooktest en `screenshots-m4.mjs` openden IndexedDB met vaste versie 1; dat kan niet meer nu de app versie 2 gebruikt (de browser weigert dan). Ze openen hem nu zonder versie, en maken de stores alleen als de database nog niet bestond. Wat ze controleren, is niet veranderd. `screenshots-m4.mjs` daarna nog één keer gedraaid (naar een kladmap): werkt.
+  - **Fouten in mijn eigen nieuwe tests** (de app was daar niet fout): Esc tijdens de openingsanimatie (wordt bewust genegeerd), een selector voor de kaart (Leaflet zet de class op het element zelf), en een hulpje dat bij een briefje `data-action` las in plaats van `data-id`. Rechtgezet zonder te veranderen wát ze controleren.
+  - **Het proefbord terugzetten** in Chromium: er komt een tweede bord 🧪 bij met 300 briefjes, en van de 40 foto's laden alleen de 3 die in beeld zijn.
+- **Niet getest:** alles op een echte telefoon. Vooral: hoe vloeiend het scrollen op een iPhone is. Safari tekent anders dan Chromium (uit mijn kennis: geen aparte "Layerize"-stap zoals hierboven, en het tekent met de GPU), dus de getallen hierboven zeggen weinig over Safari; de testlijst moet het uitwijzen. Verder niet getest: VoiceOver en TalkBack (axe controleert de opmaak, niet hoe het klinkt), een echt toetsenbord aan een iPad, `IntersectionObserver` in Safari met het geschaalde bord in vrij (zou moeten werken, niet nagemeten), en het downloaden van het proefbord op de iPhone (uit mijn kennis: op GitHub met "Download raw file" komt het in Bestanden).
+
+### Te testen op de telefoon (na de deploy van M5)
+
+Punten 1 t/m 9 kunnen zonder worker.
+
+1. Na het bijwerken: verschijnt één keer "Er hangt iets nieuws op het prikbord!" met versie 5?
+2. **Je eigen foto's:** staan de foto's op je briefjes er nog, en verschijnen ze (de allereerste keer kan dat even duren, dan worden de duimnagels gemaakt)?
+3. **Proefbord binnenhalen:** open op de telefoon `https://github.com/oscardillewaard-ai/prikbord/blob/main/docs/m5/prikbord-backup-proefbord-300.json` (na de deploy; tot die tijd staat het op de werkbranch `ccr-f626df03-9jb4ek`), tik op "Download raw file" (het pijltje), en dan in het Prikbord: Meer → Terugzetten → kies het bestand. Komt er een bord "🧪 Proefbord (300)" bij? Tik op de bordnaam bovenin om erheen te gaan.
+4. **Scrollen:** veeg op het proefbord een paar keer flink naar beneden en weer terug. Voelt het vloeiend? Zie je lege polaroidjes (📷), en hoe snel vullen ze zich? Doe het daarna nog een keer (app weg en opnieuw open): beter?
+5. **Filteren op het proefbord:** tik een categorie aan en weer uit. Schuiven de briefjes soepel?
+6. **Groot:** open een briefje met foto: is de foto scherp?
+7. **Vrij op het proefbord:** zoomen en schuiven, en een briefje slepen. Soepel?
+8. **Proefbord weghalen:** Meer → Bord verlaten. Is het weg, en staan je eigen borden er nog precies zo?
+9. **Leesbaarheid:** de tekenteller rechtsonder op het schrijfvel, "Geprikt door …" op een geopend koraalkleurig briefje (Uit eten), en de datum op een briefje in de Gedaan-doos. Goed te lezen?
+10. *(Als je wilt)* **VoiceOver:** Instellingen → Toegankelijkheid → VoiceOver aan, en veeg met één vinger door het bord. Hoor je bijvoorbeeld "Uit eten: Sushi in Den Haag, knop"? Op een geopend briefje: zegt het hartje "Mijn hartje, 2 in totaal"? (Driemaal op de zijknop drukken zet VoiceOver aan en uit, als je dat zo instelt.)
+11. *(Als je wilt)* **Toetsenbord** (laptop, of iPad met toetsenbord): Tab door de app, Enter opent een briefje, Esc hangt het terug. In vrij: verplaatsen de pijltjes het briefje met focus?
 
 ### M4 (9 nov 2026): link, foto en kaart
 
@@ -371,38 +434,32 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - Oscar koos voor een eigen repo. De docs zijn overgezet naar `oscardillewaard-ai/prikbord`, met A3 erbij.
 - In Tezt: cache-fix voor Tarapp en Parkenjacht (`3cf0159`), getest in Chromium (vóór en na).
 
-## Voor M5: handig om te weten
+## Na M5: handig om te weten
 
-- **Foto's laden nu allemaal meteen**, ook buiten beeld: `polaroidHtml()` start `laadFoto()` voor elk polaroidje dat getekend wordt (eerst IndexedDB, dan de worker). Voor §8 M5 ("foto's pas laden als ze in beeld komen"): een `IntersectionObserver` op `.polaroid.leeg[data-foto]` die pas dan `laadFoto()` aanroept. De object-URL's (`fotoUrls`) worden nooit vrijgegeven; bij 300 briefjes met foto's kan dat geheugen kosten op een oude telefoon.
-- **Hoogte van een briefje met foto:** het polaroidje heeft een vaste vierkante verhouding (`aspect-ratio: 1`), dus het bord verspringt niet als een foto binnenkomt. Een briefje met foto is wel veel hoger; kijk bij de prestaties of netjes-rommelig met 300 briefjes (een deel met foto) vloeiend blijft.
-- **Kaart:** bij elke `render()` op de kaart-tab worden alle punaises opnieuw gezet (`zetKaartPunaises`, `clearLayers`). Met een paar honderd plekken is dat waarschijnlijk prima, maar niet gemeten. Punaises die dicht bij elkaar liggen, overlappen bij uitzoomen (geen clustering).
-- **Toegankelijkheid (M5):** punaises op de kaart openen met Enter en spatie; het polaroidje heeft `alt=""` met een verborgen "met foto" in de tekst van het briefje. In de plek-kiezer kun je met het toetsenbord zoeken, een link plakken of je locatie gebruiken, maar niet op de kaart tikken. De papierkleuren en de kleine labels ("🔗 ah.nl") nog nalopen op leesbare inkt.
-- **Worker:** `validate.js` is in M4 veranderd (`MAX_FOTO`, `FOTO_TYPES`, `fotoSoort`) en de kern heeft foto's en zoeken gekregen. Wie `validate.js` of `merge.js` aanpast: `npm run worker`, en Oscar plakt de nieuwe versie in Cloudflare.
-- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft. Zolang het leeg is, kan op een bord dat niet gedeeld is alleen gezocht worden als je eerder een adres invulde.
-- **Testen:** `npm run nep-worker -- --nep-zoek` start de worker op poort 8787 met een nep-Nominatim (vaste plekken). De rooktest vangt kaarttegels af met een effen tegel (`TEGEL` in `scripts/rooktest.mjs`) en duurt nu ± 2,5 minuut. `npm run screenshots:m4` maakt de plaatjes in `docs/m4-kaart/` (met nep-tegels).
-- **Nog open bij Oscar:** akkoord op M4 en deploy, A6 (Nominatim-pauze per worker-exemplaar), de worker neerzetten (met de M4-versie), de tests met twee telefoons uit M3 en de testlijst van M4.
+- **Alle mijlpalen uit de spec zijn gebouwd.** Wat er nog ligt, komt van Oscar: de testlijsten (M3 met twee telefoons, M4 en M5), de worker neerzetten, en A6.
+- **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg. Zodra Oscar het adres van de worker geeft: daar invullen, versie ophogen (release-ritueel) en deployen na akkoord. Daarna hoeft niemand meer een adres in te vullen, en kan iedereen plekken zoeken.
+- **Prestaties meten:** `npm run prestaties` (opties bovenin `scripts/prestaties.mjs`: `--tweede`, `--css '…'` om een variant te vergelijken, `--trace` voor een Chrome-trace). Elke meting twee keer doen; de ruis is een paar haperende frames. Kijk vooral naar "langste hapering" en "lange taken"; de p95 staat bijna altijd op 16,8 ms.
+- **Wil Oscar het scrollen nog strakker** (als het op zijn telefoon hapert): laat de duimnagels van het hele bord meteen laden in plaats van pas in beeld. Gemeten: dan 2 lange taken in plaats van ± 20, voor 13,8 MP fotogeheugen bij 60 foto's in plaats van 2 à 8. Dat is één regel (de `rootMargin` van `fotoKijker` heel groot maken), maar het gaat tegen de letter van §8 in ("foto's pas laden als ze in beeld komen"), dus alleen als Oscar dat wil.
+- **Foto's en de rooktest:** de app gebruikt IndexedDB versie 2. Een script dat de database zelf opent, moet dat zonder versie doen (`indexedDB.open('prikbord')`) en stores alleen maken als ze er nog niet zijn; anders weigert de browser.
+- **Toegankelijkheid:** `scripts/axe.mjs` (`axeScan(page)`) is te gebruiken in elk Playwright-script. Een nieuw scherm? Zet er een `scan()` bij in blok 35 van de rooktest. Een nieuwe kleur op het papier? Zet hem in `tests/contrast.test.mjs`.
+- **Ideeën voor later** (niet gebouwd, uit §7 van de spec en uit de mijlpalen): zoeken op tekst, linkvoorbeelden, delen vanuit een andere app, pushmeldingen, donker thema, tekenen met de vinger, clustering van punaises op de kaart, foto's van grafstenen opruimen in KV, "bord terughalen" uit een losse koppeling.
+- **Nog open bij Oscar:** akkoord op M5 en de deploy; A6 (de Nominatim-pauze per worker-exemplaar, voorgesteld); de worker neerzetten (de versie van M4 is nog steeds de goede: M5 veranderde `validate.js` en `merge.js` niet); de tests met twee telefoons uit M3; de testlijsten van M4 en M5.
 
-## Startprompt voor M5
+## Startprompt voor een volgende chat
 
-Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt":
+Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt" (bijvoorbeeld als de testlijsten iets opleveren, of als de worker staat):
 
 ```
-Prikbord, mijlpaal M5 (afronden). Je werkt in de repo oscardillewaard-ai/prikbord.
-1. Merge eerst het werk uit M4 in je werkbranch (verandert niets als het al op main staat):
-   git fetch origin ccr-80bc7fbf-gcraqb && git merge origin/ccr-80bc7fbf-gcraqb
-2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (vooral A3:
-   eigen repo, andere paden; A5: de worker bouw je met npm run worker; A6: de
-   Nominatim-pauze) en docs/prikbord-voortgang.md (besluiten, aannames, logboek
-   M1 t/m M4, de testlijsten en "Voor M5: handig om te weten").
-3. Haal oscardillewaard-ai/Tezt erbij (alleen lezen) voor de README-secties van
-   Tarapp en Parkenjacht. Staat de echte worker nog niet, test dan met de
-   nep-worker. Geeft Oscar het adres, zet het dan als DEFAULT_SYNC_URL in
-   public/js/app.js.
-4. Doe M5 (§8 van de spec): de README-sectie in de stijl van Tarapp en
-   Parkenjacht, de changelog, prestaties (met 300 briefjes blijft scrollen
-   vloeiend op een gewone telefoon; foto's pas laden als ze in beeld komen),
-   toegankelijkheid (labels, focus, leesbare inkt op elke papierkleur) en een
-   testlijst voor Oscar. Draai voor elke commit npm test, npm run lint en
-   npm run rooktest. Werk aan het eind docs/prikbord-voortgang.md bij.
-   ⏸ Daarna wacht je op akkoord van Oscar.
+Prikbord, na M5 (onderhoud en terugkoppeling). Je werkt in de repo oscardillewaard-ai/prikbord.
+1. Merge eerst het werk uit M5 in je werkbranch (verandert niets als het al op main staat):
+   git fetch origin ccr-f626df03-9jb4ek && git merge origin/ccr-f626df03-9jb4ek
+2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md en
+   docs/prikbord-voortgang.md (besluiten, aannames, logboek M1 t/m M5, de
+   testlijsten en "Na M5: handig om te weten").
+3. Vraag Oscar wat hij vond bij de testlijsten (M3 met twee telefoons, M4, M5)
+   en los dat op. Geeft hij het adres van de worker, zet het dan als
+   DEFAULT_SYNC_URL in public/js/app.js (met het release-ritueel).
+4. Draai voor elke commit npm test, npm run lint en npm run rooktest. Werk aan
+   het eind docs/prikbord-voortgang.md bij. Deployen (pushen naar main) pas na
+   akkoord van Oscar.
 ```

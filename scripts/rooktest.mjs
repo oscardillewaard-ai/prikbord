@@ -1276,6 +1276,53 @@ const imgMaat = (p, sel) => p.evaluate((s) => [document.querySelector(s)?.natura
     await r.p.evaluate(() => !document.documentElement.style.getPropertyValue('--vvh') && !!document.querySelector('#laag').style.getPropertyValue('--vvh')),
   )
   await r.ctx.close()
+
+  // De update vanaf versie 4: een telefoon met foto's in IndexedDB versie 1
+  // (nog zonder "duimen"). Na de update moet alles er nog staan.
+  const s7 = beginStaat(nu - 864e5, 'Oscar')
+  const b7 = nieuwBriefje(s7.borden[s7.bord], { id: 'm5oud001', door: s7.apparaat.ik[s7.bord], tekst: 'Een foto uit versie 4', cat: 'todo', now: nu })
+  zetVeld(b7, 'foto', 'm5oudeFoto1', nu)
+  s7.apparaat.seenVersion = 999
+  s7.apparaat.naam = 'Oscar'
+  const r2 = await nieuwePagina({ serviceWorkers: 'block' })
+  // Eerst op dezelfde site, maar zonder de app: de database zoals versie 4 hem maakte.
+  await r2.p.goto(`${URL_APP}fonts/OFL-caveat.txt`)
+  await r2.p.evaluate(
+    ([b64, json]) =>
+      new Promise((klaar) => {
+        localStorage.setItem('prikbord.v1', json)
+        const o = indexedDB.open('prikbord', 1)
+        o.onupgradeneeded = () => {
+          o.result.createObjectStore('fotos')
+          o.result.createObjectStore('wachtrij')
+        }
+        o.onsuccess = () => {
+          const tx = o.result.transaction('fotos', 'readwrite')
+          tx.objectStore('fotos').put({ blob: new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: 'image/jpeg' }), t: Date.now() }, 'm5oudeFoto1')
+          tx.oncomplete = () => {
+            o.result.close()
+            klaar()
+          }
+        }
+      }),
+    [heel, JSON.stringify(s7)],
+  )
+  await r2.p.goto(URL_APP)
+  await r2.p.waitForSelector('.bord-binnen .polaroid[data-foto="m5oudeFoto1"]:not(.leeg) img[src^="blob:"]', { timeout: 10000 })
+  const db7 = await r2.p.evaluate(
+    () =>
+      new Promise((klaar) => {
+        const o = indexedDB.open('prikbord')
+        o.onsuccess = () => {
+          klaar({ versie: o.result.version, stores: [...o.result.objectStoreNames].sort() })
+          o.result.close()
+        }
+      }),
+  )
+  const oudMaat = await imgMaat(r2.p, '.bord-binnen .polaroid[data-foto="m5oudeFoto1"] img')
+  ok('update vanaf versie 4: de oude foto staat er nog en krijgt een duimnagel (IndexedDB 1 → 2)', db7.versie === 2 && db7.stores.join() === 'duimen,fotos,wachtrij' && oudMaat[0] === 480, `${JSON.stringify(db7)}, ${oudMaat.join(' × ')}`)
+  ok('update vanaf versie 4: de hele foto zelf is niet veranderd (1600 × 1200)', (await idbFoto(r2.p, 'm5oudeFoto1'))?.w === 1600)
+  await r2.ctx.close()
 }
 
 // 35. Toegankelijkheid: axe-core op elk scherm, de focus, en vrij en de kaart met het toetsenbord
