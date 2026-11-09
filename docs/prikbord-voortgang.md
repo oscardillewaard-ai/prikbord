@@ -60,7 +60,7 @@ per worker-exemplaar; voorgesteld).
 - **A4 (categorieën nooit wissen):** "A4 akkoord" (bij de start van M3).
 - **A5 (de worker bouwen uit de kern plus validate.js en merge.js):** "Akkoord met a5" (na M3).
 - **Verder zonder worker:** "Kan je verder gaan zonder de worker? Dan doe ik dat als ik thuis ben." M4 mag dus beginnen voordat de worker staat en voordat M3 met twee telefoons getest is. Testen gaat tot die tijd met de nep-worker (`npm run nep-worker`, of `startWorker()` in de rooktest). Gevolg: vindt Oscar bij de test met twee telefoons iets in M3, dan lossen we dat op in een latere chat.
-- **V8, deploy M4:** "deploy M4" (na "Geef prompt"). `main` is fast-forward gezet van `9ba15fc` (M2) naar `39c5582` (M4); workflow-run 5 (lint, tests, deploy). Daarmee staat ook **M3** live (M4 bouwt erop voort). Zonder worker is dat onschuldig: borden blijven op de telefoon, en "Samen prikken" vraagt om het adres van een sync-server. Wel ziet Oscar na het bijwerken één keer "Wat is er nieuw" met versie 3 én 4, inclusief "Samen prikken!", wat pas werkt als de worker staat. Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M4.
+- **V8, deploy M4:** "deploy M4" (na "Geef prompt"). `main` is fast-forward gezet van `9ba15fc` (M2) naar `39c5582` (M4); workflow-run 5 (lint, tests, deploy; geslaagd om 15:11, na 4 minuten "deployment_queued" bij GitHub Pages). Daarmee staat ook **M3** live (M4 bouwt erop voort). Zonder worker is dat onschuldig: borden blijven op de telefoon, en "Samen prikken" vraagt om het adres van een sync-server. Wel ziet Oscar na het bijwerken één keer "Wat is er nieuw" met versie 3 én 4, inclusief "Samen prikken!", wat pas werkt als de worker staat. Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M4.
 
 ## Nagelezen in de documentatie (via curl)
 
@@ -380,6 +380,7 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - **Worker:** `validate.js` is in M4 veranderd (`MAX_FOTO`, `FOTO_TYPES`, `fotoSoort`) en de kern heeft foto's en zoeken gekregen. Wie `validate.js` of `merge.js` aanpast: `npm run worker`, en Oscar plakt de nieuwe versie in Cloudflare.
 - **`DEFAULT_SYNC_URL`** in `public/js/app.js` is nog leeg tot Oscar het adres van de worker doorgeeft. Zolang het leeg is, kan op een bord dat niet gedeeld is alleen gezocht worden als je eerder een adres invulde.
 - **Testen:** `npm run nep-worker -- --nep-zoek` start de worker op poort 8787 met een nep-Nominatim (vaste plekken). De rooktest vangt kaarttegels af met een effen tegel (`TEGEL` in `scripts/rooktest.mjs`) en duurt nu ± 2,5 minuut. `npm run screenshots:m4` maakt de plaatjes in `docs/m4-kaart/` (met nep-tegels).
+- **Workflow:** run 5 waarschuwde dat `actions/deploy-pages@v4` voor Node.js 20 is gemaakt, dat GitHub afbouwt (hij draait nu gedwongen op Node.js 24, en dat werkt). Kijk in M5 of er nieuwere versies van de actions zijn (`deploy-pages`, `upload-pages-artifact`, `checkout`, `setup-node`); na te lezen op github.blog (2025-09-19, "deprecation of Node 20 on GitHub Actions runners").
 - **Nog open bij Oscar:** akkoord op M4 en deploy, A6 (Nominatim-pauze per worker-exemplaar), de worker neerzetten (met de M4-versie), de tests met twee telefoons uit M3 en de testlijst van M4.
 
 ## Startprompt voor M5
