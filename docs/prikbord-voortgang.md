@@ -28,7 +28,7 @@ per worker-exemplaar; voorgesteld). Alle mijlpalen M0 t/m M5 zijn gebouwd; zie
 | M2 het bord | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-eb14dc7d-18clpv` |
 | M3 samen | klaar en gedeployd (9 nov, samen met M4), staat op `main`. De worker staat nog niet; Oscar zet hem neer en test dan met twee telefoons | `ccr-fc257cf9-70gzqa` |
 | M4 link, foto en kaart | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
-| M5 afronden | klaar (9 nov), **wacht op akkoord van Oscar**; nog niet gedeployd. Testlijst voor de telefoon hieronder | `ccr-f626df03-9jb4ek` |
+| M5 afronden | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-f626df03-9jb4ek` |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
 
@@ -62,6 +62,7 @@ per worker-exemplaar; voorgesteld). Alle mijlpalen M0 t/m M5 zijn gebouwd; zie
 - **A5 (de worker bouwen uit de kern plus validate.js en merge.js):** "Akkoord met a5" (na M3).
 - **Verder zonder worker:** "Kan je verder gaan zonder de worker? Dan doe ik dat als ik thuis ben." M4 mag dus beginnen voordat de worker staat en voordat M3 met twee telefoons getest is. Testen gaat tot die tijd met de nep-worker (`npm run nep-worker`, of `startWorker()` in de rooktest). Gevolg: vindt Oscar bij de test met twee telefoons iets in M3, dan lossen we dat op in een latere chat.
 - **V8, deploy M4:** "deploy M4" (na "Geef prompt"). `main` is fast-forward gezet van `9ba15fc` (M2) naar `39c5582` (M4); workflow-run 5 (lint, tests, deploy). Daarmee staat ook **M3** live (M4 bouwt erop voort). Zonder worker is dat onschuldig: borden blijven op de telefoon, en "Samen prikken" vraagt om het adres van een sync-server. Wel ziet Oscar na het bijwerken één keer "Wat is er nieuw" met versie 3 én 4, inclusief "Samen prikken!", wat pas werkt als de worker staat. Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M4.
+- **V9, deploy M5:** "Deploy m5 en geef nieuwe prompt". `main` is fast-forward gezet van `39c5582` (M4) naar `a9078ae` (M5); workflow-run 6 (lint, tests, deploy) is geslaagd. Live op `https://oscardillewaard-ai.github.io/prikbord/` (versie 5). Na het bijwerken ziet Oscar één keer "Wat is er nieuw" met versie 5, en de eerste keer dat zijn foto's in beeld komen, worden de duimnagels gemaakt (IndexedDB gaat van versie 1 naar 2). Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M5.
 
 ## Nagelezen in de documentatie (via curl)
 
@@ -225,7 +226,7 @@ Punten 1 t/m 9 kunnen zonder worker.
 
 1. Na het bijwerken: verschijnt één keer "Er hangt iets nieuws op het prikbord!" met versie 5?
 2. **Je eigen foto's:** staan de foto's op je briefjes er nog, en verschijnen ze (de allereerste keer kan dat even duren, dan worden de duimnagels gemaakt)?
-3. **Proefbord binnenhalen:** open op de telefoon `https://github.com/oscardillewaard-ai/prikbord/blob/main/docs/m5/prikbord-backup-proefbord-300.json` (na de deploy; tot die tijd staat het op de werkbranch `ccr-f626df03-9jb4ek`), tik op "Download raw file" (het pijltje), en dan in het Prikbord: Meer → Terugzetten → kies het bestand. Komt er een bord "🧪 Proefbord (300)" bij? Tik op de bordnaam bovenin om erheen te gaan.
+3. **Proefbord binnenhalen:** open op de telefoon `https://github.com/oscardillewaard-ai/prikbord/blob/main/docs/m5/prikbord-backup-proefbord-300.json`, tik op "Download raw file" (het pijltje), en dan in het Prikbord: Meer → Terugzetten → kies het bestand. Komt er een bord "🧪 Proefbord (300)" bij? Tik op de bordnaam bovenin om erheen te gaan.
 4. **Scrollen:** veeg op het proefbord een paar keer flink naar beneden en weer terug. Voelt het vloeiend? Zie je lege polaroidjes (📷), en hoe snel vullen ze zich? Doe het daarna nog een keer (app weg en opnieuw open): beter?
 5. **Filteren op het proefbord:** tik een categorie aan en weer uit. Schuiven de briefjes soepel?
 6. **Groot:** open een briefje met foto: is de foto scherp?
@@ -443,7 +444,7 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - **Foto's en de rooktest:** de app gebruikt IndexedDB versie 2. Een script dat de database zelf opent, moet dat zonder versie doen (`indexedDB.open('prikbord')`) en stores alleen maken als ze er nog niet zijn; anders weigert de browser.
 - **Toegankelijkheid:** `scripts/axe.mjs` (`axeScan(page)`) is te gebruiken in elk Playwright-script. Een nieuw scherm? Zet er een `scan()` bij in blok 35 van de rooktest. Een nieuwe kleur op het papier? Zet hem in `tests/contrast.test.mjs`.
 - **Ideeën voor later** (niet gebouwd, uit §7 van de spec en uit de mijlpalen): zoeken op tekst, linkvoorbeelden, delen vanuit een andere app, pushmeldingen, donker thema, tekenen met de vinger, clustering van punaises op de kaart, foto's van grafstenen opruimen in KV, "bord terughalen" uit een losse koppeling.
-- **Nog open bij Oscar:** akkoord op M5 en de deploy; A6 (de Nominatim-pauze per worker-exemplaar, voorgesteld); de worker neerzetten (de versie van M4 is nog steeds de goede: M5 veranderde `validate.js` en `merge.js` niet); de tests met twee telefoons uit M3; de testlijsten van M4 en M5.
+- **Nog open bij Oscar:** A6 (de Nominatim-pauze per worker-exemplaar, voorgesteld); de worker neerzetten (de versie van M4 is nog steeds de goede: M5 veranderde `validate.js` en `merge.js` niet); de tests met twee telefoons uit M3; de testlijsten van M4 en M5.
 
 ## Startprompt voor een volgende chat
 
