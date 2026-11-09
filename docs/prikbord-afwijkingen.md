@@ -112,4 +112,4 @@ worden hier niet herhaald.
 - **Alternatief:** de worker met de hand bijhouden, met een test die op
   willekeurige borden controleert dat worker en app hetzelfde samenvoegen.
   Dat werkt ook, maar dan pas je alles twee keer aan.
-- **Status:** voorgesteld (wacht op Oscar).
+- **Status:** akkoord (Oscar, 9 nov 2026: "Akkoord met a5").

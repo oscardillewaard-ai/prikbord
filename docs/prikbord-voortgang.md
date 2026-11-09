@@ -57,6 +57,7 @@ A5 (de worker wordt gebouwd met `npm run worker`).
 
 - **V7, deploy M2:** "Deploy en geef prompt". `main` is fast-forward gezet naar `99d6957` (M2 deel 2); workflow-run 3 (lint, tests, deploy). Live op `https://oscardillewaard-ai.github.io/prikbord/` (versie 2). Ook nu niet zelf bekeken: deze cloudsessie kan `github.io` niet openen. Dat doet Oscar met de testlijst van M2.
 - **A4 (categorieën nooit wissen):** "A4 akkoord" (bij de start van M3).
+- **A5 (de worker bouwen uit de kern plus validate.js en merge.js):** "Akkoord met a5" (na M3).
 
 ## Nagelezen in de documentatie (via curl)
 
@@ -169,14 +170,15 @@ Uit M0:
 
 ### De worker neerzetten (voor Oscar)
 
-Dit staat ook bovenin `proxy/prikbord-sync-worker.js`. Het is gratis en kost ± 10 minuten.
+Dit staat ook bovenin `proxy/prikbord-sync-worker.js`. Het is gratis en kost ± 10 minuten. Doe het het liefst op een computer: dan is het kopiëren en plakken makkelijker. De knoppen heb ik op 9 nov 2026 nagelezen in de documentatie van Cloudflare; "Edit code" ken ik uit mijn hoofd.
 
 1. Ga naar dash.cloudflare.com en log in (hetzelfde account als Parkenjacht mag).
-2. **Opslag maken:** Storage & Databases → KV → Create, noem hem `prikbord`. Neem niet die van Parkenjacht: zo werkt de een gewoon door als de ander stuk gaat.
-3. **Worker maken:** Workers & Pages → Create → Worker (begin met "Hello World"), noem hem `prikbord` en klik Deploy. Klik daarna "Edit code", haal alles weg, plak de hele inhoud van `proxy/prikbord-sync-worker.js` erin en klik Deploy. (Op GitHub: open het bestand, klik "Raw", selecteer alles en kopieer.)
-4. **Opslag koppelen:** worker → Settings → Bindings → Add → KV namespace. Variable name: `PRIKBORD`, kies de namespace `prikbord` en klik Deploy (of Save).
-5. **Controleren:** open het adres van de worker in je browser. Ik verwacht `https://prikbord.oscar-dillewaard.workers.dev`, net als bij Parkenjacht, maar dat is een aanname. Daar staat in gewone taal of alles klopt. Met `?schrijftest=1` erachter test hij ook schrijven (dat kost één van de 1.000 schrijfacties per dag).
-6. **Stuur me het adres**, dan zet ik het als `DEFAULT_SYNC_URL` in de app. Daarna hoeft niemand meer een adres in te vullen.
+2. **Opslag maken:** ga naar **Workers KV** (`https://dash.cloudflare.com/?to=/:account/workers/kv/namespaces`) → **Create instance**, noem hem `prikbord` → **Create**. Neem niet die van Parkenjacht: zo werkt de een gewoon door als de ander stuk gaat. Kies geen "KV Instant" (een bèta die we niet nodig hebben).
+3. **Worker maken:** **Workers & Pages** (`https://dash.cloudflare.com/?to=/:account/workers-and-pages`) → **Create application** → **Start with Hello World!** → **Get started**, noem hem `prikbord` en klik **Deploy**.
+4. **De code erin:** open het bestand op GitHub: `https://github.com/oscardillewaard-ai/prikbord/blob/ccr-fc257cf9-70gzqa/proxy/prikbord-sync-worker.js` en kopieer alles (met de knop "Copy raw file", of via "Raw" en dan alles selecteren). Open in Cloudflare bij je worker de code-editor (**Edit code**), haal alles weg, plak, en klik **Deploy**.
+5. **Opslag koppelen:** open de worker → tabblad **Bindings** → **Add binding** → **KV namespace** → **Add binding**. Variable name: `PRIKBORD`, kies de namespace `prikbord` en klik **Add binding**.
+6. **Controleren:** open het adres van de worker in je browser. Ik verwacht `https://prikbord.oscar-dillewaard.workers.dev`, net als bij Parkenjacht, maar dat is een aanname. Daar staat in gewone taal of alles klopt. Met `?schrijftest=1` erachter test hij ook schrijven (dat kost één van de 1.000 schrijfacties per dag).
+7. **Stuur me het adres**, dan zet ik het als `DEFAULT_SYNC_URL` in de app. Daarna hoeft niemand meer een adres in te vullen.
 
 **Als het ooit knelt:** in het dashboard van de worker staat onder Metrics hoeveel verzoeken er zijn, en onder Metrics → Errors → Invocation Statuses of er verzoeken over de 10 ms rekentijd gingen ("Exceeded CPU Time Limits"). Bij de KV-namespace staat, voor zover ik weet, hoeveel schrijfacties er per dag zijn. Gaat het mis, dan raakt er niets kwijt: de app houdt de wijziging in het verschil en probeert het bij elke peiling opnieuw, met een oranje bolletje. Dan zijn er drie uitwegen: de opgeslagen stand niet opnieuw controleren (~20% sneller), het bord in KV opknippen (meer werk), of het betaalde plan van Cloudflare ($5 per maand, uit mijn kennis, niet nagelezen).
 

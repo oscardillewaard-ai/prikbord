@@ -7,17 +7,21 @@
 // stand). Met GET /bord/<code>?sinds=<rev> peilt de app: is er niets
 // veranderd, dan antwoordt de worker kort { rev, ongewijzigd: true }.
 //
-// Neerzetten (gratis, ± 10 minuten):
+// Neerzetten (gratis, ± 10 minuten; knoppen nagelezen in de docs van
+// Cloudflare op 9 nov 2026):
 // 1. Ga naar dash.cloudflare.com en log in (of maak gratis een account).
-// 2. Opslag maken: Storage & Databases -> KV -> Create (namespace), noem hem
-//    "prikbord". Gebruik NIET die van Parkenjacht: zo werkt de een gewoon
-//    door als de ander stuk gaat.
-// 3. Worker maken: Workers & Pages -> Create -> Worker (begin met "Hello
-//    World"), noem hem "prikbord" en klik Deploy. Klik daarna "Edit code",
-//    haal alles weg, plak dit hele bestand erin en klik Deploy.
-// 4. Opslag koppelen: ga naar de worker -> Settings -> Bindings -> Add ->
-//    KV namespace. Variable name: PRIKBORD, kies de namespace "prikbord" van
-//    stap 2 en klik Deploy (of Save).
+// 2. Opslag maken: ga naar Workers KV
+//    (https://dash.cloudflare.com/?to=/:account/workers/kv/namespaces)
+//    -> Create instance, noem hem "prikbord" -> Create. Gebruik
+//    NIET die van Parkenjacht: zo werkt de een gewoon door als de ander stuk
+//    gaat. (Kies geen "KV Instant", dat is een bèta die we niet nodig hebben.)
+// 3. Worker maken: Workers & Pages -> Create application -> Start with Hello
+//    World! -> Get started, noem hem "prikbord" en klik Deploy. Open daarna
+//    de code-editor ("Edit code"), haal alles weg, plak dit hele bestand erin
+//    en klik Deploy.
+// 4. Opslag koppelen: open de worker -> tabblad Bindings -> Add binding ->
+//    KV namespace -> Add binding. Variable name: PRIKBORD, kies de namespace
+//    "prikbord" van stap 2 en klik Add binding.
 // 5. Controleren: open het adres van de worker in je browser (bijv.
 //    https://prikbord.<jouw-naam>.workers.dev). Daar staat in gewone taal of
 //    alles klopt. Wil je ook zien dat schrijven lukt? Zet ?schrijftest=1
@@ -443,9 +447,9 @@ async function statusPagina(env, url) {
       '❌ Er is nog geen opslag gekoppeld.',
       '',
       'Zo los je het op:',
-      '1. Maak een KV namespace (Storage & Databases -> KV -> Create), bijv. "prikbord".',
-      '2. Ga naar deze worker -> Settings -> Bindings -> Add -> KV namespace.',
-      '3. Variable name: PRIKBORD, kies de namespace van stap 1 en klik Deploy.',
+      '1. Maak opslag: Workers KV -> Create instance, noem hem "prikbord" -> Create.',
+      '2. Open deze worker -> tabblad Bindings -> Add binding -> KV namespace -> Add binding.',
+      '3. Variable name: PRIKBORD, kies de namespace "prikbord" van stap 1 en klik Add binding.',
       '4. Ververs deze pagina.',
     )
   } else {
