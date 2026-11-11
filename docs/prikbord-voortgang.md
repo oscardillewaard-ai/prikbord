@@ -29,6 +29,7 @@ per worker-exemplaar; voorgesteld). Alle mijlpalen M0 t/m M5 zijn gebouwd; zie
 | M3 samen | klaar en gedeployd (9 nov, samen met M4), staat op `main`. De worker staat nog niet; Oscar zet hem neer en test dan met twee telefoons | `ccr-fc257cf9-70gzqa` |
 | M4 link, foto en kaart | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
 | M5 afronden | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-f626df03-9jb4ek` |
+| Versie 6: opknapbeurt (na M5) | klaar op de werkbranch, **nog niet gedeployd**: wacht op akkoord van Oscar. Testlijst voor de telefoon hieronder | `ccr-156d0d09-anwxoc` |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
 
@@ -185,6 +186,128 @@ Uit M0:
 - **`npm run lint` in Tezt is rood** door Tarapp (sinds `9d838b1`). Niet aangepakt. De deploy van Tezt draait geen lint.
 
 ## Logboek
+
+### Versie 6 (10 en 11 nov 2026): opknapbeurt na M5
+
+Vraag van Oscar: "Bekijk nog een keer alles en wat er beter kan. Verbeter
+animaties en dergelijke. Verbeter graphics." En tijdens het werk: "Ik wil
+ook graag de algehele look aanpakken. Het moet er professioneler uitzien.
+Maak tevens eigen iconen." Voor-en-na-plaatjes staan in `docs/v6/`.
+
+**Twee bugs gevonden bij het nalopen (allebei gecontroleerd in de browser):**
+
+- **Een vol bord schoof over de kop en de tabbalk heen.** Elk briefje heeft
+  een eigen z-index (1, 2, 3 …), en het bord was geen eigen stapel. Vanaf
+  ± 20 briefjes lagen de briefjes bij het scrollen dus bóven het blokje (20),
+  de filterbalk (24), de kop (25) en de tabbalk (26), en een tik op de
+  tabbalk kwam op een briefje terecht. Opgelost met `z-index: 0` op
+  `.bord-binnen`. Niet eerder gezien, omdat de demoborden 12 briefjes hebben.
+- **De kop op het welkomstbriefje stond wit op geel** (1,14 : 1): `.paneel h2`
+  won van `.welkom-kop`. axe zag dit niet: het slaat tekst over een
+  achtergrondafbeelding over, en het papier heeft korrel.
+
+**Nieuwe controles in de rooktest** (253 → 271), allebei bewust
+kapotgemaakt om te zien dat ze rood worden:
+
+- `papierScan` (`scripts/axe.mjs`): rekent het contrast na van elke letter
+  op een briefje, zoals de browser hem na alle CSS-regels echt tekent
+  (minstens 4,5 : 1). Draait bij elke axe-scan en op het welkomstscherm.
+- "vol bord": halverwege een bord van 80 briefjes blijven de kop, de
+  filterbalk, het blokje en de tabbalk bovenop, op vijf plekken over de
+  breedte (in het midden zit de kier tussen de kolommen).
+
+**Een fout die ik zelf maakte, en die de rooktest ving:** de eerste versie
+van de tabwissel liet het hele scherm (`#view`) invagen. In één samenloop
+(net geprikt, dan naar een andere tab) kwam daarna geen enkele tik meer aan
+in het scherm, ook geen echte muisklik, tot het scherm opnieuw werd
+ingedeeld. Een eigen stapel of `will-change` op `#view` hielp niet. De
+precieze oorzaak in Chromium heb ik niet gevonden; wel dat het zonder die
+ene animatie niet gebeurt. Daarom beweegt `#view` nu nooit: bij een
+tabwissel ligt er een los doek in kurkkleur over het nieuwe scherm dat
+wegvaagt (`beweging.js`: `onthul`). **Regel voor later: zet geen animatie
+op `#view` of op iets dat het hele scherm bevat.**
+
+**Beweging** (alles met transform en opacity; niets bij "minder beweging"):
+
+- Knoppen, rijen, chips en tabs geven mee onder je vinger. Safari op de
+  iPhone doet `:active` pas met een touchstart-luisteraar op de pagina (uit
+  mijn kennis van iOS, niet getest op een toestel).
+- Panelen komen zacht omhoog, meldingen ploppen in beeld en vagen weer weg.
+  Hetzelfde scherm opnieuw getekend (een categorie omhoog) beweegt niet.
+- Tabwissel: het doek vaagt weg, het icoontje springt op, en boven de
+  gekozen tab hangt een rood lintje.
+- Scheuren met een rukje vooraf; de punaise gaat erin met een drukgolfje en
+  het briefje slingert gedempt uit.
+- Dubbeltik: het grote hart vliegt naar zijn plekje onderaan het briefje.
+- Confetti met een echte worp (beginsnelheid, zwaartekracht, luchtweerstand,
+  fladderen): schiet tot ruim over de helft van het scherm.
+- De dobbelsteen rolt bij "Trek een briefje".
+- Een briefje van een ander zie je binnenkomen na een sync (hooguit acht
+  tegelijk, alleen wat in beeld hangt, zonder geluid).
+
+**Uiterlijk:**
+
+- 38 eigen iconen (lijntekeningen, één sprite in `index.html`, `.ic` in
+  `styles.css`) in plaats van emoji op knoppen, in de tabbalk, de filterbalk,
+  de Meer-lijst en bij link en plek. Emoji blijven voor wat van de gebruiker
+  is (categorie, bord) en in lopende tekst (meldingen, changelog): de spec
+  zegt "emoji mag", dus dit is geen afwijking.
+- Knoppen met een zacht verloop, iconen in een getint vakje in de
+  Meer-lijst, koppen van panelen zonder emoji, donkerder doek achter
+  panelen, zoomknoppen van de kaart in de stijl van de app.
+- Licht op het papier (glans linksboven, 5% schaduw onderaan), bollere
+  punaises met een dubbele schaduw, een lijst met dikte en een lijmrand op
+  het blokje. `tests/contrast.test.mjs` rekent nu met het donkerste stukje
+  papier: de inkt haalt daar nog 7,4 : 1 op koraal (de laagste).
+- Nieuw app-icoon in de stijl van de briefjes. Een app die al op het
+  beginscherm staat, houdt op de iPhone het oude icoon tot je hem opnieuw
+  toevoegt (uit mijn kennis van iOS, niet getest).
+
+**Gemeten** (`npm run prestaties`: 300 briefjes, CPU 4× trager, oud en nieuw
+op dezelfde machine, elk twee keer):
+
+| | haperende frames (van ± 870) | langste hapering | langste taak |
+| --- | --- | --- | --- |
+| versie 5 | 36 en 42 | 183 ms | 129 en 135 ms |
+| versie 6 | 45 en 45 | 150 ms | 94 en 107 ms |
+
+Dus ongeveer gelijk: een paar korte haperingen meer, de langste hapering
+korter. Zonder het licht op het papier werd het niet beter (51), zonder de
+dubbele schaduw van de punaise ook niet (45): die kosten dus niets meetbaars.
+Het blijft een nabootsing zonder grafische kaart; op de telefoon voelen.
+
+**Niet gedaan, met reden:**
+
+- De geluidjes zijn niet aangepast: ik kan hier niet luisteren.
+- `confirm()` bij weghalen en weggooien is het venster van de telefoon
+  gebleven. Een eigen venster kan, maar raakt veel tests; apart oppakken.
+- Het kurk zelf is niet veranderd: van dichtbij bekeken was het al goed.
+
+**Tests:** `npm test` 122/122, `npm run lint` schoon, `npm run rooktest`
+271 geslaagd, 0 mislukt.
+
+### Te testen op de telefoon (na de deploy van versie 6)
+
+1. **Vol bord** (zet het proefbord van 300 erop, of gebruik je eigen bord als
+   er meer dan 20 briefjes op hangen): scrol naar beneden. Blijven de kop,
+   de filterbalk, het blokje en de tabbalk bovenop?
+2. **Knoppen**: geven ze mee als je erop drukt (kleiner worden, een rij
+   wordt iets donkerder)? Dit is de regel die ik niet op een iPhone kon
+   proberen.
+3. **Tabs**: wissel een paar keer snel tussen Bord, Kaart, Gedaan-doos en
+   Meer, ook vlak nadat je iets prikte. Kun je daarna overal gewoon tikken?
+4. **Prikken**: zie je het kringetje als de punaise erin gaat, en slingert
+   het briefje uit?
+5. **Hartje**: dubbeltik op een briefje. Vliegt het grote hart naar het
+   kleine hartje onderaan?
+6. **Gedaan**: schiet de confetti omhoog, en hapert het niet?
+7. **Iconen**: zijn ze overal scherp en duidelijk? Mis je ergens een emoji
+   die je liever terug wilt?
+8. **Samen** (zodra de worker staat): prik iets op de ene telefoon en kijk
+   of het briefje op de andere binnen komt vallen.
+9. **Het icoon**: verwijder de app van het beginscherm en zet hem er
+   opnieuw op. Zie je het nieuwe icoon?
+
 
 ### M5 (9 nov 2026): afronden
 
@@ -445,6 +568,25 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 - **Toegankelijkheid:** `scripts/axe.mjs` (`axeScan(page)`) is te gebruiken in elk Playwright-script. Een nieuw scherm? Zet er een `scan()` bij in blok 35 van de rooktest. Een nieuwe kleur op het papier? Zet hem in `tests/contrast.test.mjs`.
 - **Ideeën voor later** (niet gebouwd, uit §7 van de spec en uit de mijlpalen): zoeken op tekst, linkvoorbeelden, delen vanuit een andere app, pushmeldingen, donker thema, tekenen met de vinger, clustering van punaises op de kaart, foto's van grafstenen opruimen in KV, "bord terughalen" uit een losse koppeling.
 - **Nog open bij Oscar:** A6 (de Nominatim-pauze per worker-exemplaar, voorgesteld); de worker neerzetten (de versie van M4 is nog steeds de goede: M5 veranderde `validate.js` en `merge.js` niet); de tests met twee telefoons uit M3; de testlijsten van M4 en M5.
+
+**Erbij sinds versie 6:**
+
+- **Iconen:** een nieuw icoon is een `<symbol id="i-naam">` in de sprite in
+  `index.html` (24 × 24, alleen lijnen; een vlakje met
+  `fill="currentColor" fill-opacity="0.16"`), en je gebruikt het als
+  `<svg class="ic" aria-hidden="true"><use href="#i-naam"/></svg>`. Geen
+  emoji voor knoppen en menu's.
+- **Geen animatie op `#view`** of op iets dat het hele scherm bevat (zie het
+  logboek van versie 6). Wil je een scherm laten invagen: het doek
+  (`onthul` in `beweging.js`).
+- **Tekst op papier:** `papierScan` in de rooktest vangt een verkeerde kleur
+  op een briefje; nieuw scherm met een briefje erop = ook daar `scan()`.
+- **Het bord is een eigen stapel** (`.bord-binnen` heeft `z-index: 0`): haal
+  dat niet weg, anders schuiven de briefjes weer over de kop.
+- Kijken zonder telefoon: voor versie 6 heb ik filmstrips in slow motion
+  gemaakt (devtools: `Animation.setPlaybackRate`, plus `setTimeout` × 10).
+  Dat script stond buiten de repo; het idee staat in `scripts/screenshots-m2.mjs`.
+
 
 ## Startprompt voor een volgende chat
 
