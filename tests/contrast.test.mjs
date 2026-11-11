@@ -53,7 +53,11 @@ export function contrast(a, b) {
 }
 
 const INKT = rgb(rootVar('inkt'))
-const PAPIEREN = PAPIER.map((p) => [p, rgb(rootVar(`p-${p}`))])
+// Het papier is niet overal even licht (versie 6): onderaan ligt er een zweem
+// schaduw overheen (--papier-schaduw). We rekenen met het donkerste stukje;
+// de glans bovenaan maakt het papier alleen maar lichter, dus leesbaarder.
+const SCHADUW = rgb(rootVar('papier-schaduw'))
+const PAPIEREN = PAPIER.map((p) => [p, meng(SCHADUW, rgb(rootVar(`p-${p}`)), SCHADUW.a)])
 const WIT = rgb('#ffffff')
 // Laagste contrast over alle papierkleuren, met de naam van de slechtste.
 function slechtste(fn) {
@@ -71,6 +75,16 @@ test('rekenformule klopt: zwart op wit is 21 : 1, wit op wit 1 : 1, en #767676 o
 
 test('alle 10 papierkleuren staan in de stijl', () => {
   assert.equal(PAPIEREN.length, 10)
+})
+
+test('het licht op het papier: een zweem schaduw (hooguit 8%), en de glans is wit', () => {
+  // De schaduw maakt het papier donkerder en kost dus contrast: klein houden.
+  assert.ok(SCHADUW.a > 0 && SCHADUW.a <= 0.08, `--papier-schaduw is ${SCHADUW.a}`)
+  const glans = rgb(rootVar('papier-glans'))
+  assert.deepEqual([glans.r, glans.g, glans.b], [255, 255, 255])
+  // En het verloop gebruikt ze ook echt (anders rekent deze test met lucht).
+  assert.match(CSS, /--papier-licht:[^;]*var\(--papier-glans\)[^;]*var\(--papier-schaduw\)/)
+  assert.match(regel('.briefje').background, /var\(--papier-licht\)/)
 })
 
 test('handschriftinkt op elk papier: minstens 7 : 1 (AAA), ook boven een lijntje minstens 4,5 : 1', () => {

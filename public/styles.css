@@ -31,7 +31,9 @@
   --lijst: 7px;
   --kop-bg: url(img/hout.svg), linear-gradient(#7a4d29, #5e3a1c);
   --kop-fg: #fff3e0;
-  --kop-schaduw: 0 3px 6px rgba(30, 14, 2, 0.45);
+  /* Een lichte kant bovenaan en een donkere onderaan (het hout heeft dikte),
+     en daaronder de schaduw van de lijst op het kurk. */
+  --kop-schaduw: inset 0 1px 0 rgba(255, 232, 196, 0.2), inset 0 -1px 0 rgba(20, 8, 0, 0.5), inset 0 -4px 6px rgba(20, 8, 0, 0.16), 0 3px 7px rgba(30, 14, 2, 0.5);
   --tab-bg: var(--korrel), linear-gradient(#fbf4e6, #f3e7d0);
   --tab-fg: #6d5843;
   --tab-actief: #9e2f22;
@@ -52,6 +54,13 @@
   --inkt: #1f3474;
   --briefje-pad: 20px 12px 24px 14px;
   --lijntje: rgba(60, 100, 170, 0.28);
+  /* Licht op het papier: linksboven valt het licht erop, naar onderen toe
+     hangt het briefje een haartje van het bord af. Twee kleuren, zodat
+     tests/contrast.test.mjs ermee kan rekenen: de inkt moet ook op het
+     donkerste stukje papier minstens 7 : 1 halen. */
+  --papier-glans: rgba(255, 255, 255, 0.32);
+  --papier-schaduw: rgba(96, 60, 20, 0.05);
+  --papier-licht: linear-gradient(170deg, var(--papier-glans) 0%, transparent 36%, transparent 60%, var(--papier-schaduw) 100%);
   --p-zon: #fff1a8;
   --p-perzik: #ffdcbc;
   --p-koraal: #ffc9bd;
@@ -128,13 +137,19 @@ body::after {
   z-index: 30;
   pointer-events: none;
 }
+/* De binnenkant van de lijst is donker, en de lijst werpt een zachte schaduw
+   op het kurk: het bord ligt een stukje dieper dan het hout. */
 body::before {
   left: 0;
-  box-shadow: inset -2px 0 3px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset -2px 0 3px rgba(0, 0, 0, 0.25),
+    3px 0 7px rgba(30, 14, 2, 0.3);
 }
 body::after {
   right: 0;
-  box-shadow: inset 2px 0 3px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 2px 0 3px rgba(0, 0, 0, 0.25),
+    -3px 0 7px rgba(30, 14, 2, 0.3);
 }
 
 /* ---------- Kop ---------- */
@@ -233,7 +248,7 @@ main {
   font-size: var(--hand-grootte);
   line-height: var(--hand-regel);
   color: var(--inkt);
-  background: var(--korrel), var(--papier-extra, none), var(--papier);
+  background: var(--korrel), var(--papier-licht), var(--papier-extra, none), var(--papier);
   background-position: var(--papier-positie, 0 0);
   cursor: pointer;
   outline: none;
@@ -304,7 +319,7 @@ main {
   max-width: 330px;
   margin: 0 auto;
   padding: 26px 22px 24px;
-  background: var(--korrel), var(--papier-extra, none), var(--papier);
+  background: var(--korrel), var(--papier-licht), var(--papier-extra, none), var(--papier);
   background-position: var(--papier-positie, 0 0);
   color: var(--inkt);
   transform: rotate(-1.5deg);
@@ -360,6 +375,7 @@ main {
   transform: rotate(-4deg);
   background:
     var(--korrel),
+    var(--papier-licht),
     repeating-linear-gradient(to bottom, transparent 0 13px, var(--lijntje) 13px 14px),
     var(--papier, var(--p-wit));
   border-top: 7px solid var(--blok-lijm);
@@ -369,6 +385,17 @@ main {
     0 4px 0 color-mix(in srgb, var(--papier, var(--p-wit)) 85%, #5a4a30),
     0 6px 0 color-mix(in srgb, var(--papier, var(--p-wit)) 78%, #5a4a30),
     3px 12px 14px rgba(35, 18, 4, 0.4);
+}
+/* De lijmrand bovenaan: een glimlijntje erop en een donkere onderkant. */
+.blok-vel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -7px;
+  height: 7px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 42%, rgba(0, 0, 0, 0.4));
 }
 .blok-plus {
   font-family: var(--hand);
@@ -415,45 +442,61 @@ main {
   color: var(--tab-fg);
   cursor: pointer;
 }
-.tabbar button span {
-  font-size: 21px;
-  line-height: 1;
-  filter: grayscale(0.6);
-  opacity: 0.75;
+.tabbar .ic {
+  width: 25px;
+  height: 25px;
+  stroke-width: 1.8;
 }
 .tabbar button[aria-current='page'] {
   color: var(--tab-actief);
 }
-.tabbar button[aria-current='page'] span {
-  filter: none;
-  opacity: 1;
+.tabbar button[aria-current='page'] .ic {
   transform: scale(1.08);
+  stroke-width: 2;
 }
 
 /* ---------- Knoppen ---------- */
 
 .knop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
   border: 0;
   border-radius: 999px;
-  padding: 12px 18px;
+  padding: 11px 18px;
   font-family: var(--ui);
   font-size: 16px;
   font-weight: 650;
-  background: rgba(255, 251, 243, 0.94);
+  line-height: 1.2;
+  letter-spacing: 0.005em;
+  background: linear-gradient(#fffdf8, #f6eedf);
   color: #3a2a1b;
-  box-shadow: 0 2px 6px rgba(30, 15, 0, 0.22);
+  /* Een dun randje licht bovenop en een zachte schaduw eronder: de knop ligt óp het doek. */
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 0 0 1px rgba(90, 60, 30, 0.14),
+    0 2px 5px rgba(30, 15, 0, 0.24);
   cursor: pointer;
 }
 .knop.primair {
-  background: var(--accent);
+  background: linear-gradient(#c4402f, #a93324);
   color: var(--accent-fg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 0 0 1px rgba(90, 20, 10, 0.25),
+    0 2px 6px rgba(70, 15, 5, 0.4);
+}
+.knop:disabled {
+  opacity: 0.7;
 }
 .knop:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 2px;
 }
 .blok-knop {
-  display: block;
+  display: flex;
   width: 100%;
   margin-top: 18px;
 }
@@ -747,10 +790,20 @@ div.rij {
   border-top: 1px solid rgba(80, 55, 30, 0.14);
 }
 .rij-icoon {
-  font-size: 22px;
-  width: 30px;
-  text-align: center;
   flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(150, 105, 60, 0.13);
+  color: #6a4a2c;
+  font-size: 20px;
+  line-height: 1;
+}
+.rij-icoon .ic {
+  width: 21px;
+  height: 21px;
 }
 .rij-tekst {
   flex: 1;
@@ -766,8 +819,10 @@ div.rij {
   font-weight: 400;
 }
 .rij-pijl {
-  font-size: 24px;
+  width: 18px;
+  height: 18px;
   color: #a08c78;
+  stroke-width: 2.2;
 }
 .versie {
   text-align: center;
@@ -903,11 +958,22 @@ div.rij {
 
 /* ---------- Punaises: glimmend en bol ---------- */
 
-.punaise {
+/* Drie lagen: een scherp glimlichtje linksboven, een zachte weerschijn
+   rechtsonder (het papier kaatst terug) en de bol zelf, licht in het midden
+   en donker naar de rand. De schaduw is dubbel: kort en donker waar de
+   punaise het papier raakt, breed en zacht eromheen. */
+.punaise,
+.pin-bol,
+.pin-keus .kleur {
   background:
-    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0 11%, transparent 32%),
-    radial-gradient(circle at 50% 46%, var(--pk) 0 50%, color-mix(in srgb, var(--pk) 58%, #000) 100%);
-  box-shadow: 2px 3px 3px rgba(40, 18, 2, 0.45);
+    radial-gradient(circle at 33% 28%, rgba(255, 255, 255, 0.95) 0 6%, rgba(255, 255, 255, 0.5) 12%, rgba(255, 255, 255, 0) 29%),
+    radial-gradient(circle at 70% 78%, rgba(255, 255, 255, 0.22) 0 7%, rgba(255, 255, 255, 0) 25%),
+    radial-gradient(circle at 44% 38%, color-mix(in srgb, var(--pk) 80%, #fff) 0 16%, var(--pk) 46%, color-mix(in srgb, var(--pk) 54%, #000) 100%);
+}
+.punaise {
+  box-shadow:
+    1px 2px 1.5px rgba(40, 18, 2, 0.5),
+    3px 6px 5px rgba(40, 18, 2, 0.24);
 }
 
 /* ---------- Kladblokpapier ---------- */
@@ -918,7 +984,7 @@ div.rij {
 .leeg-briefje {
   --regel: var(--hand-regel);
   --papier-extra: repeating-linear-gradient(to bottom, transparent 0 calc(var(--regel) - 1px), var(--lijntje) calc(var(--regel) - 1px) var(--regel));
-  --papier-positie: 0 0, 0 calc(var(--regel) * 0.77), 0 0;
+  --papier-positie: 0 0, 0 0, 0 calc(var(--regel) * 0.77), 0 0;
 }
 .leeg-briefje {
   line-height: var(--regel);
@@ -1568,8 +1634,10 @@ html.vrij-modus body {
   outline-offset: 1px;
 }
 .klein-knop {
-  padding: 9px 14px;
+  min-height: 38px;
+  padding: 8px 14px;
   font-size: 14px;
+  gap: 6px;
 }
 .knop-tekst {
   display: block;
@@ -1759,10 +1827,11 @@ html.vrij-modus body {
   white-space: nowrap;
 }
 .kop-pijl {
-  flex: none;
-  font-size: 13px;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.4;
   opacity: 0.75;
-  margin-left: -2px;
+  margin-left: -3px;
 }
 .kop-nieuw {
   flex: none;
@@ -1835,9 +1904,6 @@ html.vrij-modus body {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0 11%, transparent 32%),
-    radial-gradient(circle at 50% 46%, var(--pk) 0 50%, color-mix(in srgb, var(--pk) 58%, #000) 100%);
   box-shadow: 1px 2px 2px rgba(40, 18, 2, 0.4);
   vertical-align: middle;
 }
@@ -1851,8 +1917,9 @@ html.vrij-modus body {
 }
 .bord-rij[aria-current='true'] .rij-pijl {
   color: var(--accent);
-  font-size: 20px;
-  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.6;
 }
 .bord-rij strong {
   overflow: hidden;
@@ -1933,9 +2000,6 @@ html.vrij-modus body {
 /* De kleur van je punaises: bolletjes in plaats van papiertjes. */
 .pin-keus .kleur {
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0 11%, transparent 32%),
-    radial-gradient(circle at 50% 46%, var(--pk) 0 50%, color-mix(in srgb, var(--pk) 58%, #000) 100%);
 }
 .pin-keus .kleur:has(input:checked)::after {
   color: #fff;
@@ -2241,15 +2305,6 @@ html.vrij-modus body {
     0 0 0 2px #fbf4e6,
     0 2px 5px rgba(25, 12, 0, 0.3);
 }
-/* Een stukje plakband als icoon (er is geen emoji voor plakband). */
-.icoon-plakband {
-  display: inline-block;
-  width: 20px;
-  height: 9px;
-  background: rgba(214, 196, 140, 0.95);
-  transform: rotate(-12deg);
-  clip-path: polygon(0 15%, 15% 0, 30% 15%, 50% 0, 70% 15%, 85% 0, 100% 15%, 100% 85%, 85% 100%, 70% 85%, 50% 100%, 30% 85%, 15% 100%, 0 85%);
-}
 .vel-link {
   display: flex;
   gap: 8px;
@@ -2548,11 +2603,8 @@ li + li .zoek-uitkomst {
     opacity 0.15s ease-out,
     box-shadow 0.15s ease-out;
 }
-.tabbar button span {
-  transition:
-    transform 0.12s ease-out,
-    opacity 0.2s ease-out,
-    filter 0.2s ease-out;
+.tabbar .ic {
+  transition: transform 0.12s ease-out;
 }
 .rij,
 .zoek-uitkomst,
@@ -2586,7 +2638,7 @@ label.rij:active,
 .tabje:active {
   transform: rotate(0) scale(0.97);
 }
-.tabbar button:active span {
+.tabbar button:active .ic {
   transform: scale(0.86);
 }
 
@@ -2702,5 +2754,151 @@ label.rij:active,
   .polaroid.groot-foto img,
   .polaroid.gedaan-foto img {
     transition: none;
+  }
+}
+
+/* ---------- De zoomknoppen van de kaart, in de stijl van de app ---------- */
+
+/* Leaflet (vendor/leaflet.css) wordt na dit bestand geladen; daarom met de
+   kaart ervoor, zodat deze regels winnen. Zelfde papieren knoppen als in de
+   vrij-modus, en groot genoeg voor een duim (44 px). */
+.kaart .leaflet-bar,
+.kies-kaart .leaflet-bar {
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.kaart .leaflet-bar a,
+.kies-kaart .leaflet-bar a {
+  width: 46px;
+  height: 44px;
+  line-height: 44px;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(80, 55, 30, 0.18);
+  background: var(--korrel), #fffaf0;
+  color: #4a3624;
+  font: 600 24px/44px var(--ui);
+}
+.kaart .leaflet-bar a:last-child,
+.kies-kaart .leaflet-bar a:last-child {
+  border-bottom: 0;
+}
+.kaart .leaflet-bar a:focus-visible,
+.kies-kaart .leaflet-bar a:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: -3px;
+}
+.kaart .leaflet-bar a.leaflet-disabled,
+.kies-kaart .leaflet-bar a.leaflet-disabled {
+  background: var(--korrel), #efe6d6;
+  color: #a39482;
+}
+
+/* ---------- Eigen iconen (versie 6) ---------- */
+
+/* Lijntekeningen uit de sprite in index.html, in de kleur van de tekst
+   eromheen. Geen emoji meer voor knoppen en menu's: die zien er op elke
+   telefoon anders uit. Emoji blijven voor wat van jou is (de categorie, het
+   bord) en in de lopende tekst van meldingen. */
+.ic {
+  flex: none;
+  width: 1.25em;
+  height: 1.25em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.26em;
+  overflow: visible;
+}
+.knop .ic {
+  width: 20px;
+  height: 20px;
+}
+.klein-knop .ic {
+  width: 17px;
+  height: 17px;
+}
+.chip .ic {
+  width: 16px;
+  height: 16px;
+  vertical-align: -0.2em;
+}
+.chip-samen .ic {
+  color: #c2334a;
+}
+.chip-gedaan .ic {
+  color: #17602f;
+}
+.bijlage .ic {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.1;
+  vertical-align: -0.15em;
+}
+.vel-bijlage .ic {
+  width: 15px;
+  height: 15px;
+}
+.extra-knop .ic {
+  width: 19px;
+  height: 19px;
+  color: #6a4a2c;
+}
+.weg-knop .ic {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.6;
+  vertical-align: -0.12em;
+}
+.trek-knop .ic {
+  width: 27px;
+  height: 27px;
+  color: #b73a2b;
+  stroke-width: 1.8;
+}
+.zoomknoppen .ic {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+.groot-link .ic,
+.groot-waar-naam .ic {
+  width: 17px;
+  height: 17px;
+}
+.groot-waar-naam .ic {
+  color: #b73a2b;
+}
+.doos-kop .ic {
+  width: 30px;
+  height: 30px;
+  vertical-align: -0.12em;
+  stroke-width: 1.7;
+}
+.knop-tekst {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.knop-tekst .ic {
+  width: 18px;
+  height: 18px;
+}
+/* Even wachten (zoeken): een rondje dat draait, in plaats van een zandloper. */
+.wacht {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: draai 0.7s linear infinite;
+}
+@keyframes draai {
+  to {
+    transform: rotate(360deg);
   }
 }

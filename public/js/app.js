@@ -24,7 +24,7 @@ import { fotosVan, naarBase64, schoonFotos } from './fotomaat.js'
 import * as fotos from './photos.js'
 import { laadLeaflet, maakKaart, punaise, kiesPunaise, pasInBeeld, ruimOp, NL } from './map.js'
 
-export const APP_VERSION = '5' // ophogen bij elke release, samen met CACHE in sw.js
+export const APP_VERSION = '6' // ophogen bij elke release, samen met CACHE in sw.js
 
 // Adres van de sync-worker (proxy/prikbord-sync-worker.js). Leeg = je vult het
 // zelf in bij "Bord delen". Ingevuld = alleen nog "Maak een koppel-link".
@@ -34,6 +34,19 @@ const DEFAULT_SYNC_URL = ''
 // Nieuwste bovenaan. Bij een release: APP_VERSION ophogen, CACHE in sw.js
 // ophogen en hier een regel toevoegen.
 const CHANGELOG = [
+  {
+    v: 6,
+    items: [
+      '✨ Een grote opknapbeurt! Eigen iconen in plaats van emoji op de knoppen en in de tabbalk, strakkere knoppen en een rustigere Meer-pagina. Het kurk en de briefjes zijn gebleven, met mooier licht op het papier en bollere punaises',
+      '👆 Alles beweegt lekkerder: knoppen geven mee onder je vinger, schermen en meldingen komen zacht in beeld',
+      '📌 De punaise gaat er met een kringetje in, en het briefje slingert daarna even uit',
+      '💕 Geef je een hartje (dubbeltik), dan vliegt het grote hart naar zijn plekje onderaan het briefje',
+      '🎉 Meer feest bij Gedaan: de confetti schiet echt omhoog en dwarrelt fladderend naar beneden. En de dobbelsteen rolt als je een briefje trekt',
+      '🤝 Prikt een ander iets, dan zie je het briefje binnenkomen: het ploft op zijn plek en de punaise gaat erin',
+      '🐛 Opgelost: op een bord met veel briefjes schoven de briefjes bij het scrollen over de kop en de tabbalk heen',
+      '🐛 Opgelost: de kop op het welkomstbriefje was wit op geel en bijna niet te lezen',
+    ],
+  },
   {
     v: 5,
     items: [
@@ -553,8 +566,8 @@ function bijlagenHtml(b) {
   const link = waarde(b.v, 'link')
   const plek = waarde(b.v, 'plek')
   if (!link && !plek) return ''
-  return `<span class="bijlagen">${link ? `<span class="bijlage"><span aria-hidden="true">🔗</span><span class="vh">Link naar</span> ${esc(domeinVan(link))}</span>` : ''}${
-    plek ? `<span class="bijlage"><span aria-hidden="true">📍</span><span class="vh">Plek:</span> ${esc(plekLabel(plek))}</span>` : ''
+  return `<span class="bijlagen">${link ? `<span class="bijlage"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span class="vh">Link naar</span> ${esc(domeinVan(link))}</span>` : ''}${
+    plek ? `<span class="bijlage"><svg class="ic" aria-hidden="true"><use href="#i-plek"/></svg><span class="vh">Plek:</span> ${esc(plekLabel(plek))}</span>` : ''
   }</span>`
 }
 
@@ -570,16 +583,16 @@ function filterChips() {
   const sorteren =
     ui.tab === 'bord' && !isVrij()
       ? `<button type="button" class="chip chip-sorteer" data-action="sorteer" aria-label="Sorteren: ${sorteerWijze() === 'hartjes' ? 'meeste hartjes eerst' : 'nieuwste eerst'}. Tik om te wisselen.">
-           <span aria-hidden="true">⇅</span> ${sorteerWijze() === 'hartjes' ? 'Meeste hartjes' : 'Nieuwste eerst'}</button>`
+           <svg class="ic" aria-hidden="true"><use href="#i-sorteer"/></svg> ${sorteerWijze() === 'hartjes' ? 'Meeste hartjes' : 'Nieuwste eerst'}</button>`
       : ''
   // Op de kaart: gedane briefjes (grijs) erbij of niet.
   const gedaanOok =
     ui.tab === 'kaart'
-      ? `<button type="button" class="chip chip-gedaan" data-action="kaart-gedaan" aria-pressed="${ui.kaartGedaan}"><span aria-hidden="true">✅</span> Gedaan ook</button>`
+      ? `<button type="button" class="chip chip-gedaan" data-action="kaart-gedaan" aria-pressed="${ui.kaartGedaan}"><svg class="ic" aria-hidden="true"><use href="#i-vink-rond"/></svg> Gedaan ook</button>`
       : ''
   return `${sorteren}
     <button type="button" class="chip chip-alles" data-filter="alles" aria-pressed="${isAlles(f)}">Alles</button>
-    <button type="button" class="chip chip-samen" data-filter="samen" aria-pressed="${f.samen}"><span aria-hidden="true">💞</span> Iedereen zin</button>
+    <button type="button" class="chip chip-samen" data-filter="samen" aria-pressed="${f.samen}"><svg class="ic" aria-hidden="true"><use href="#i-harten"/></svg> Iedereen zin</button>
     ${gedaanOok}
     ${cats
       .map(
@@ -590,7 +603,7 @@ function filterChips() {
 }
 
 function filterbalkHtml() {
-  const trekKnop = ui.tab === 'bord' ? '<button type="button" class="trek-knop" data-action="trek" aria-label="Trek een briefje" title="Trek een briefje"><span aria-hidden="true">🎲</span></button>' : ''
+  const trekKnop = ui.tab === 'bord' ? '<button type="button" class="trek-knop" data-action="trek" aria-label="Trek een briefje" title="Trek een briefje"><svg class="ic" aria-hidden="true"><use href="#i-dobbel"/></svg></button>' : ''
   return `<div class="filterbalk" id="filterbalk"><div class="chips" id="chips" role="group" aria-label="Filteren">${filterChips()}</div>${trekKnop}</div>`
 }
 
@@ -681,9 +694,9 @@ function bordSkelet(scherm) {
           <p class="vh" id="vrij-uitleg">Verplaats een briefje met de pijltjestoetsen, met Shift in grotere stappen.</p>
           <div class="vrij-wereld" id="vrij-wereld"></div>
           <div class="zoomknoppen" role="group" aria-label="Zoomen">
-            <button type="button" data-zoom="in" aria-label="Inzoomen">+</button>
+            <button type="button" data-zoom="in" aria-label="Inzoomen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
             <button type="button" data-zoom="uit" aria-label="Uitzoomen">−</button>
-            <button type="button" data-zoom="passend" aria-label="Het hele bord laten zien"><span aria-hidden="true">⤢</span></button>
+            <button type="button" data-zoom="passend" aria-label="Het hele bord laten zien"><svg class="ic" aria-hidden="true"><use href="#i-passend"/></svg></button>
           </div>
         </div>
       </section>`
@@ -1163,26 +1176,26 @@ function openPlekKiezer() {
   openLaag(
     `
     <div class="paneel plek-kiezer" id="plek-kiezer">
-      <h2 id="laag-titel">📍 Waar is het?</h2>
+      <h2 id="laag-titel">Waar is het?</h2>
       <div class="zoek-rij">
         <input id="plek-zoek" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="Zoek een plek, of plak een link"
           aria-label="Zoek een plek op naam of adres, of plak een link van Google Maps of OpenStreetMap" />
-        <button type="button" class="knop primair zoek-knop" data-plek="zoek"><span aria-hidden="true">🔎</span> Zoek</button>
+        <button type="button" class="knop primair zoek-knop" data-plek="zoek"><svg class="ic" aria-hidden="true"><use href="#i-zoek"/></svg> Zoek</button>
       </div>
       <ul class="zoek-uitkomsten" id="zoek-uitkomsten" hidden></ul>
       <p class="fout" id="plek-fout" role="alert"></p>
       <div class="kies-kaart" id="kies-kaart"><p class="kaart-laden">🗺️ Kaart laden…</p></div>
       <p class="plek-status" id="plek-status" aria-live="polite"></p>
       <div class="plek-knoppen">
-        <button type="button" class="knop" data-plek="locatie"><span aria-hidden="true">🎯</span> Mijn locatie</button>
-        ${p ? '<button type="button" class="knop" data-plek="weg"><span aria-hidden="true">🗑️</span> Geen plek</button>' : ''}
+        <button type="button" class="knop" data-plek="locatie"><svg class="ic" aria-hidden="true"><use href="#i-doel"/></svg> Mijn locatie</button>
+        ${p ? '<button type="button" class="knop" data-plek="weg"><svg class="ic" aria-hidden="true"><use href="#i-prullenbak"/></svg> Geen plek</button>' : ''}
       </div>
       <label class="veld"><span>Naam van de plek <span class="klein">(mag leeg blijven)</span></span>
         <input id="plek-naam" maxlength="120" autocomplete="off" value="${esc(p?.naam || '')}" placeholder="Bijv. Sushi in Den Haag" /></label>
       <p class="paneel-uitleg plek-uitleg">Tik op de kaart om de punaise neer te zetten en sleep hem precies goed. Met een toetsenbord: Enter zet hem in het midden. Zoeken: © OpenStreetMap-bijdragers, via Nominatim.</p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-plek="terug">Terug</button>
-        <button type="button" class="knop primair" data-plek="klaar">Klaar <span aria-hidden="true">📍</span></button>
+        <button type="button" class="knop primair" data-plek="klaar">Klaar <svg class="ic" aria-hidden="true"><use href="#i-plek"/></svg></button>
       </div>
     </div>`,
     'plek',
@@ -1292,7 +1305,7 @@ async function zoekPlek() {
   const adres = zoekAdres()
   if (!adres) return plekFout('Zoeken op naam kan zodra er een sync-server is (Meer → Samen prikken). Tik intussen op de kaart, gebruik je locatie of plak een link.')
   knop.disabled = true
-  knop.innerHTML = '⏳ <span class="vh">Bezig met zoeken</span>'
+  knop.innerHTML = '<span class="wacht" aria-hidden="true"></span><span class="vh">Bezig met zoeken</span>'
   // Nominatim: hooguit één zoekopdracht per seconde (§6.5), ook vanuit de app.
   const wacht = laatsteZoek + ZOEK_PAUZE_MS - Date.now()
   if (wacht > 0) await new Promise((ok) => setTimeout(ok, wacht))
@@ -1310,7 +1323,7 @@ async function zoekPlek() {
     laatsteZoek = Date.now()
     if (knop.isConnected) {
       knop.disabled = false
-      knop.innerHTML = '<span aria-hidden="true">🔎</span> Zoek'
+      knop.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-zoek"/></svg> Zoek'
     }
   }
   const k = ui.plekKies
@@ -1447,7 +1460,7 @@ function doosInhoud() {
     )
     .join('')
   return `
-    <h2 class="doos-kop"><span aria-hidden="true">📦</span> De Gedaan-doos</h2>
+    <h2 class="doos-kop"><svg class="ic" aria-hidden="true"><use href="#i-doos"/></svg> De Gedaan-doos</h2>
     <p class="doos-teller" id="doos-teller">${teller}</p>
     ${
       maanden ||
@@ -1478,70 +1491,70 @@ function renderMeer() {
         <button type="button" class="rij" data-action="bord-instel">
           <span class="rij-icoon" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
           <span class="rij-tekst"><strong>${esc(waarde(bd.info, 'naam', 'Prikbord'))}</strong><span class="klein">Naam en emoji, of het bord verlaten</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-action="delen">
-          <span class="rij-icoon" aria-hidden="true">🤝</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-mensen"/></svg></span>
           <span class="rij-tekst"><strong>Samen prikken</strong><span class="klein">${gedeeld() ? `<span data-sync-status>${esc(statusTekst())}</span><br>${esc(metWie(bd))}` : 'Alleen op deze telefoon. Deel dit bord met een koppel-link'}</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-action="ik">
           <span class="rij-icoon" aria-hidden="true"><span class="pin-bol pin-${lidVan(bd, ikId()).kleur}"></span></span>
           <span class="rij-tekst"><strong>Wie ben ik</strong><span class="klein">Je bent ${esc(lidVan(bd, ikId()).naam)} op dit bord · naam en kleur</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-action="cats">
-          <span class="rij-icoon" aria-hidden="true">🏷️</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-label"/></svg></span>
           <span class="rij-tekst"><strong>Categorieën</strong><span class="klein">${meervoud(nCats, 'categorie', 'categorieën')} · namen, emoji, kleuren en volgorde</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
       </div>
 
       <h3 class="groep-kop">Borden</h3>
       <div class="groep">
         <button type="button" class="rij" data-action="borden">
-          <span class="rij-icoon" aria-hidden="true">📋</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-borden"/></svg></span>
           <span class="rij-tekst"><strong>Alle borden</strong><span class="klein">${meervoud(Object.keys(staat.borden).length, 'bord', 'borden')} · wisselen, nieuw bord of een koppel-link</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
       </div>
 
       <h3 class="groep-kop">Op deze telefoon</h3>
       <div class="groep">
         <label class="rij">
-          <span class="rij-icoon" aria-hidden="true">🔊</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-geluid"/></svg></span>
           <span class="rij-tekst"><strong>Geluid</strong><span class="klein">Rrrits bij het scheuren, tok bij het prikken en plop bij gedaan</span></span>
           <input type="checkbox" class="schakelaar" data-setting="geluid" ${staat.apparaat.geluid ? 'checked' : ''} />
         </label>
-        <div class="rij"><span class="rij-icoon" aria-hidden="true">💾</span>
+        <div class="rij"><span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-opslag"/></svg></span>
           <span class="rij-tekst"><strong>Blijvende opslag</strong><span class="klein">${opslag}</span></span></div>
       </div>
 
       <h3 class="groep-kop">Back-up</h3>
       <div class="groep">
         <button type="button" class="rij" data-action="export">
-          <span class="rij-icoon" aria-hidden="true">📤</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-uit"/></svg></span>
           <span class="rij-tekst"><strong>Back-up maken</strong><span class="klein" id="laatste-backup">${backupTekst}</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-action="import">
-          <span class="rij-icoon" aria-hidden="true">📥</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-in"/></svg></span>
           <span class="rij-tekst"><strong>Back-up terugzetten</strong><span class="klein">Wordt samengevoegd: wat je al hebt, blijft staan</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
       </div>
 
       <h3 class="groep-kop">App</h3>
       <div class="groep">
         <button type="button" class="rij" data-action="changelog">
-          <span class="rij-icoon" aria-hidden="true">✨</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-ster"/></svg></span>
           <span class="rij-tekst"><strong>Wat is er nieuw</strong></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-action="force-update">
-          <span class="rij-icoon" aria-hidden="true">🔄</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-ververs"/></svg></span>
           <span class="rij-tekst"><strong>Nu bijwerken</strong><span class="klein">Haalt de nieuwste versie op. Je briefjes blijven staan.</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
       </div>
       <p class="versie">Prikbord versie ${APP_VERSION} · met liefde gemaakt 📌</p>
@@ -1566,7 +1579,7 @@ function tekenKop() {
   const bd = bord()
   const elders = Object.keys(staat.borden).filter((id) => id !== staat.bord).reduce((n, id) => n + aantalNieuw(id), 0)
   $('#kop-titel').innerHTML = `<span class="kop-emoji" aria-hidden="true">${esc(waarde(bd.info, 'emoji', '📌'))}</span>
-    <span class="kop-naam">${esc(waarde(bd.info, 'naam', 'Prikbord'))}</span><span class="kop-pijl" aria-hidden="true">▾</span>
+    <span class="kop-naam">${esc(waarde(bd.info, 'naam', 'Prikbord'))}</span><svg class="ic kop-pijl" aria-hidden="true"><use href="#i-omlaag"/></svg>
     <span class="sync-dot" id="sync-dot" hidden><span class="vh" data-sync-status></span></span>
     ${elders ? `<span class="kop-nieuw" title="Nieuw op je andere borden">${elders}<span class="vh"> nieuw op je andere borden</span></span>` : ''}
     <span class="vh">, alle borden</span>`
@@ -1721,17 +1734,17 @@ function hartKnopHtml(bd, b) {
 
 const KNOPPEN = {
   open: `
-    <button type="button" class="knop" data-laag="weg"><span aria-hidden="true">🗑️</span> Weghalen</button>
-    <button type="button" class="knop" data-laag="bewerk"><span aria-hidden="true">✏️</span> Bewerken</button>
-    <button type="button" class="knop" data-laag="gedaan">Gedaan! <span aria-hidden="true">✅</span></button>
-    <button type="button" class="knop primair" data-laag="sluit">Terughangen <span aria-hidden="true">📌</span></button>`,
+    <button type="button" class="knop" data-laag="weg"><svg class="ic" aria-hidden="true"><use href="#i-prullenbak"/></svg> Weghalen</button>
+    <button type="button" class="knop" data-laag="bewerk"><svg class="ic" aria-hidden="true"><use href="#i-potlood"/></svg> Bewerken</button>
+    <button type="button" class="knop" data-laag="gedaan">Gedaan! <svg class="ic" aria-hidden="true"><use href="#i-vink-rond"/></svg></button>
+    <button type="button" class="knop primair" data-laag="sluit">Terughangen <svg class="ic" aria-hidden="true"><use href="#i-punaise"/></svg></button>`,
   trek: `
-    <button type="button" class="knop" data-laag="nog-eens"><span aria-hidden="true">🎲</span> Nog eens</button>
+    <button type="button" class="knop" data-laag="nog-eens"><svg class="ic" aria-hidden="true"><use href="#i-dobbel"/></svg> Nog eens</button>
     <button type="button" class="knop primair" data-laag="sluit">Sluiten</button>`,
   doos: `
-    <button type="button" class="knop" data-laag="weg"><span aria-hidden="true">🗑️</span> Weghalen</button>
-    <button type="button" class="knop" data-laag="terug-op-bord"><span aria-hidden="true">📌</span> Terughangen</button>
-    <button type="button" class="knop" data-laag="gedaan"><span aria-hidden="true">✏️</span> Aanpassen</button>
+    <button type="button" class="knop" data-laag="weg"><svg class="ic" aria-hidden="true"><use href="#i-prullenbak"/></svg> Weghalen</button>
+    <button type="button" class="knop" data-laag="terug-op-bord"><svg class="ic" aria-hidden="true"><use href="#i-punaise"/></svg> Terughangen</button>
+    <button type="button" class="knop" data-laag="gedaan"><svg class="ic" aria-hidden="true"><use href="#i-potlood"/></svg> Aanpassen</button>
     <button type="button" class="knop primair" data-laag="sluit">Sluiten</button>`,
 }
 
@@ -1754,11 +1767,11 @@ function grootHtml(b, soort) {
           <p class="groot-cat"><span aria-hidden="true">${cat.emoji}</span> ${esc(cat.naam)}</p>
           <p class="groot-tekst" id="laag-titel">${esc(waarde(b.v, 'tekst', ''))}</p>
           ${foto ? polaroidHtml(foto, 'groot-foto') : ''}
-          ${link ? `<p class="groot-link"><a href="${esc(link)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🔗</span> ${esc(kortLink(link))}</a></p>` : ''}
+          ${link ? `<p class="groot-link"><a href="${esc(link)}" target="_blank" rel="noopener noreferrer"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg> ${esc(kortLink(link))}</a></p>` : ''}
           ${
             plek
-              ? `<p class="groot-waar"><span class="groot-waar-naam"><span aria-hidden="true">📍</span> ${esc(plekLabel(plek))}</span>
-                 <button type="button" class="knop klein-knop" data-laag="op-kaart"><span aria-hidden="true">🗺️</span> Op de kaart</button></p>`
+              ? `<p class="groot-waar"><span class="groot-waar-naam"><svg class="ic" aria-hidden="true"><use href="#i-plek"/></svg> ${esc(plekLabel(plek))}</span>
+                 <button type="button" class="knop klein-knop" data-laag="op-kaart"><svg class="ic" aria-hidden="true"><use href="#i-kaart"/></svg> Op de kaart</button></p>`
               : ''
           }
           ${
@@ -1863,7 +1876,7 @@ function toonGedaanForm(id) {
       <p class="fout" id="gedaan-fout" role="alert"></p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-laag="gedaan-terug">Terug</button>
-        <button type="submit" class="knop primair">${uitDoos ? 'Bewaren ✍️' : 'In de doos! 📦'}</button>
+        <button type="submit" class="knop primair">${uitDoos ? 'Bewaren' : 'In de doos! <svg class="ic" aria-hidden="true"><use href="#i-doos"/></svg>'}</button>
       </div>
     </form>`
   laag.dataset.soort = uitDoos ? 'doos-gedaan' : 'gedaan'
@@ -1881,8 +1894,8 @@ function leesGedaanForm(form) {
 // Een foto bij "Gedaan!" (§5.8), om later terug te kijken.
 function gedaanFotoHtml(foto, bezig = false) {
   if (bezig) return '<span class="polaroid leeg bezig klein"><span class="vh">Foto wordt verkleind</span></span>'
-  if (foto) return `<span class="vel-foto">${polaroidHtml(foto, 'klein')}<button type="button" class="weg-knop" data-gedaan-foto="weg" aria-label="Foto weghalen">✕</button></span>`
-  return '<button type="button" class="extra-knop" data-gedaan-foto="kies"><span class="icoon-plakband" aria-hidden="true"></span> Foto erbij</button>'
+  if (foto) return `<span class="vel-foto">${polaroidHtml(foto, 'klein')}<button type="button" class="weg-knop" data-gedaan-foto="weg" aria-label="Foto weghalen"><svg class="ic" aria-hidden="true"><use href="#i-kruis"/></svg></button></span>`
+  return '<button type="button" class="extra-knop" data-gedaan-foto="kies"><svg class="ic" aria-hidden="true"><use href="#i-foto"/></svg> Foto erbij</button>'
 }
 function gedaanFotoActie(knop) {
   const form = $('#gedaan-form')
@@ -1919,7 +1932,7 @@ async function gooiInDoos(id, gedaan) {
     speel(plop)
     return melding()
   }
-  stuiter(doel.querySelector('span'))
+  stuiter(doel.querySelector('.ic'))
   confetti(doel)
   // De melding pas als het feestje bijna voorbij is (anders ligt hij over de confetti).
   setTimeout(melding, 700)
@@ -2034,9 +2047,9 @@ function openVel({ id, nieuw, tekst = '', cat, link, foto, plek, vanBlok = false
         </div>
       </div>
       <div class="vel-extra" role="group" aria-label="Iets toevoegen aan het briefje">
-        <button type="button" class="extra-knop" data-vel="link" aria-expanded="false" aria-controls="vel-link-rij"><span aria-hidden="true">📎</span> Link</button>
-        <button type="button" class="extra-knop" data-vel="foto"><span class="icoon-plakband" aria-hidden="true"></span> Foto</button>
-        <button type="button" class="extra-knop" data-vel="plek"><span aria-hidden="true">🗺️</span> Plek</button>
+        <button type="button" class="extra-knop" data-vel="link" aria-expanded="false" aria-controls="vel-link-rij"><svg class="ic" aria-hidden="true"><use href="#i-clip"/></svg> Link</button>
+        <button type="button" class="extra-knop" data-vel="foto"><svg class="ic" aria-hidden="true"><use href="#i-foto"/></svg> Foto</button>
+        <button type="button" class="extra-knop" data-vel="plek"><svg class="ic" aria-hidden="true"><use href="#i-kaart"/></svg> Plek</button>
       </div>
       <div class="vel-link" id="vel-link-rij" hidden>
         <input id="vel-link" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Plak of typ een link, bijv. ah.nl/…" aria-label="Link" />
@@ -2045,7 +2058,7 @@ function openVel({ id, nieuw, tekst = '', cat, link, foto, plek, vanBlok = false
       <p class="fout" id="vel-fout" role="alert"></p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-laag="weggooien">Weggooien</button>
-        <button type="submit" class="knop primair prik">Prikken! <span aria-hidden="true">📌</span></button>
+        <button type="submit" class="knop primair prik">Prikken! <svg class="ic" aria-hidden="true"><use href="#i-punaise"/></svg></button>
       </div>
     </form>`,
     'vel',
@@ -2067,12 +2080,12 @@ function openVel({ id, nieuw, tekst = '', cat, link, foto, plek, vanBlok = false
 function velBijlagenHtml() {
   const v = ui.vel
   if (!v) return ''
-  const kruisje = (wat, label) => `<button type="button" class="weg-knop" data-vel="${wat}-weg" aria-label="${label}">✕</button>`
+  const kruisje = (wat, label) => `<button type="button" class="weg-knop" data-vel="${wat}-weg" aria-label="${label}"><svg class="ic" aria-hidden="true"><use href="#i-kruis"/></svg></button>`
   return [
     v.fotoBezig ? '<span class="vel-foto"><span class="polaroid leeg bezig klein"><span class="vh">Foto wordt verkleind</span></span></span>' : '',
     !v.fotoBezig && v.foto ? `<span class="vel-foto">${polaroidHtml(v.foto, 'klein')}${kruisje('foto', 'Foto weghalen')}</span>` : '',
-    v.link ? `<span class="bijlage vel-bijlage"><span aria-hidden="true">🔗</span> ${esc(domeinVan(v.link))}${kruisje('link', 'Link weghalen')}</span>` : '',
-    v.plek ? `<span class="bijlage vel-bijlage"><span aria-hidden="true">📍</span> ${esc(plekLabel(v.plek))}${kruisje('plek', 'Plek weghalen')}</span>` : '',
+    v.link ? `<span class="bijlage vel-bijlage"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg> ${esc(domeinVan(v.link))}${kruisje('link', 'Link weghalen')}</span>` : '',
+    v.plek ? `<span class="bijlage vel-bijlage"><svg class="ic" aria-hidden="true"><use href="#i-plek"/></svg> ${esc(plekLabel(v.plek))}${kruisje('plek', 'Plek weghalen')}</span>` : '',
   ].join('')
 }
 function tekenVelBijlagen() {
@@ -2375,18 +2388,18 @@ function openCats(focus) {
   openLaag(
     `
     <div class="paneel">
-      <h2 id="laag-titel">🏷️ Categorieën</h2>
+      <h2 id="laag-titel">Categorieën</h2>
       <p class="paneel-uitleg">Voor het bord <strong>${esc(waarde(bd.info, 'naam', 'Prikbord'))}</strong>. Elke categorie heeft zijn eigen kleur papier. Tik op een categorie om hem aan te passen.</p>
       <div class="groep">${zicht.map(rij).join('')}</div>
-      <button type="button" class="knop blok-knop" data-cats="nieuw">＋ Nieuwe categorie</button>
+      <button type="button" class="knop blok-knop" data-cats="nieuw"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Nieuwe categorie</button>
       ${
         weg.length
-          ? `<h3 class="groep-kop">🙈 Verborgen</h3>
+          ? `<h3 class="groep-kop">Verborgen</h3>
              <p class="paneel-uitleg">Die kies je niet meer voor een nieuw briefje, maar oude briefjes houden hun kleur.</p>
              <div class="groep">${weg.map(rij).join('')}</div>`
           : ''
       }
-      <button type="button" class="knop primair blok-knop" data-laag="sluit">Klaar <span aria-hidden="true">👍</span></button>
+      <button type="button" class="knop primair blok-knop" data-laag="sluit">Klaar <svg class="ic" aria-hidden="true"><use href="#i-vink"/></svg></button>
     </div>`,
     'cats',
   )
@@ -2427,8 +2440,8 @@ function openCatBewerk(catId) {
         <button type="button" class="knop" data-cats="lijst">Terug</button>
         <button type="submit" class="knop primair">${catId ? 'Bewaren' : 'Toevoegen'}</button>
       </div>
-      ${catId && !c.verborgen ? `<button type="button" class="knop-tekst" data-cats="verberg" data-cat="${catId}">🙈 Deze categorie verbergen</button>` : ''}
-      ${catId && c.verborgen ? `<button type="button" class="knop-tekst" data-cats="toon" data-cat="${catId}">👀 Weer laten zien</button>` : ''}
+      ${catId && !c.verborgen ? `<button type="button" class="knop-tekst" data-cats="verberg" data-cat="${catId}"><svg class="ic" aria-hidden="true"><use href="#i-oog-dicht"/></svg> Deze categorie verbergen</button>` : ''}
+      ${catId && c.verborgen ? `<button type="button" class="knop-tekst" data-cats="toon" data-cat="${catId}"><svg class="ic" aria-hidden="true"><use href="#i-oog"/></svg> Weer laten zien</button>` : ''}
     </form>`,
     'cat',
   )
@@ -2734,7 +2747,7 @@ function openWelkom({ daarna = null } = {}) {
       <p class="fout" id="welkom-fout" role="alert"></p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-laag="sluit">Later</button>
-        <button type="submit" class="knop primair">Dit ben ik! <span aria-hidden="true">👋</span></button>
+        <button type="submit" class="knop primair">Dit ben ik! <svg class="ic" aria-hidden="true"><use href="#i-vink"/></svg></button>
       </div>
       <p class="paneel-uitleg welkom-voet">Aanpassen kan altijd onder Meer → Wie ben ik.</p>
     </form>`,
@@ -2788,17 +2801,17 @@ function openBorden() {
           <span class="klein">${esc(metWie(bd))}</span>
           ${actief && gedeeld(bd.id) ? `<span class="klein" data-sync-status>${esc(statusTekst())}</span>` : ''}</span>
         ${n ? `<span class="nieuw-tal">${n} nieuw</span>` : ''}
-        <span class="rij-pijl" aria-hidden="true">${actief ? '✓' : '›'}</span>
+        ${actief ? '<svg class="ic rij-pijl" aria-hidden="true"><use href="#i-vink"/></svg>' : '<svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>'}
       </button>`
   }
   openLaag(
     `
     <div class="paneel">
-      <h2 id="laag-titel">📋 Je borden</h2>
+      <h2 id="laag-titel">Je borden</h2>
       <p class="paneel-uitleg">Wissel van bord, begin een nieuw bord, of doe mee met het bord van een ander.</p>
       <div class="groep">${lijst.map(rij).join('')}</div>
-      <button type="button" class="knop blok-knop" data-borden="nieuw">＋ Nieuw bord</button>
-      <button type="button" class="knop blok-knop" data-borden="koppel"><span aria-hidden="true">🔗</span> Ik heb een koppel-link</button>
+      <button type="button" class="knop blok-knop" data-borden="nieuw"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Nieuw bord</button>
+      <button type="button" class="knop blok-knop" data-borden="koppel"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg> Ik heb een koppel-link</button>
       <button type="button" class="knop primair blok-knop" data-laag="sluit">Sluiten</button>
     </div>`,
     'borden',
@@ -2827,7 +2840,7 @@ function openNieuwBord() {
   openLaag(
     `
     <form class="paneel" id="bord-nieuw-form" novalidate>
-      <h2 id="laag-titel">📋 Nieuw bord</h2>
+      <h2 id="laag-titel">Nieuw bord</h2>
       <p class="paneel-uitleg">Bijvoorbeeld voor een groepsreis, een verbouwing of een verjaardag. Delen met anderen kan straks onder Meer.</p>
       <label class="veld"><span>Naam</span>
         <input name="naam" maxlength="60" autocomplete="off" placeholder="Bijv. Groepsreis Porto" /></label>
@@ -2881,7 +2894,7 @@ function openKoppelPlak() {
   openLaag(
     `
     <form class="paneel" id="koppel-form" novalidate>
-      <h2 id="laag-titel">🔗 Koppel-link</h2>
+      <h2 id="laag-titel">Koppel-link</h2>
       <p class="paneel-uitleg">Kreeg je een link om mee te prikken? Plak hem hier. Het hele berichtje mag ook.</p>
       <label class="veld"><span>De link</span>
         <textarea name="link" rows="3" autocomplete="off" spellcheck="false" class="link-veld" placeholder="https://…/prikbord/#koppel=…"></textarea></label>
@@ -2917,20 +2930,20 @@ function openKoppelJa(k) {
   openLaag(
     `
     <div class="paneel" id="koppel-ja">
-      <h2 id="laag-titel">🤝 Bord '${esc(k.n)}' toevoegen?</h2>
+      <h2 id="laag-titel">Bord '${esc(k.n)}' toevoegen?</h2>
       <p class="paneel-uitleg">Je ziet dan alle briefjes op dit bord, en de anderen zien wat jij prikt. Wat je al hebt, blijft gewoon staan.</p>
       ${
         IOS_SAFARI
           ? `<div class="tip-briefje papier-zon rand-3">
               <p><strong>📱 Staat het Prikbord op je beginscherm?</strong> Open dan de app, tik bovenin op de naam van het bord en kies <strong>Ik heb een koppel-link</strong>. Plak daar deze link. Safari en de app op je beginscherm bewaren hun briefjes namelijk apart.</p>
-              <button type="button" class="knop klein-knop" data-koppel="kopieer">📋 Link kopiëren</button>
+              <button type="button" class="knop klein-knop" data-koppel="kopieer"><svg class="ic" aria-hidden="true"><use href="#i-kopie"/></svg> Link kopiëren</button>
             </div>`
           : ''
       }
       <p class="fout" id="koppel-fout" role="alert"></p>
       <div class="laag-knoppen" id="koppel-knoppen">
         <button type="button" class="knop" data-koppel="nee">Nee, toch niet</button>
-        <button type="button" class="knop primair" data-koppel="ja">Toevoegen <span aria-hidden="true">🤝</span></button>
+        <button type="button" class="knop primair" data-koppel="ja">Toevoegen <svg class="ic" aria-hidden="true"><use href="#i-mensen"/></svg></button>
       </div>
     </div>`,
     'koppel-ja',
@@ -2974,7 +2987,7 @@ function openWie() {
   openLaag(
     `
     <form class="paneel" id="wie-form" novalidate>
-      <h2 id="laag-titel">🙋 Wie ben jij?</h2>
+      <h2 id="laag-titel">Wie ben jij?</h2>
       ${
         leden.length
           ? `<p class="paneel-uitleg">Heb je '${esc(waarde(bd.info, 'naam', ui.koppel.n))}' al op een andere telefoon of tablet? Kies dan jezelf, dan tellen je hartjes niet dubbel.</p>
@@ -2996,7 +3009,7 @@ function openWie() {
       <p class="fout" id="wie-fout" role="alert"></p>
       <div class="laag-knoppen">
         <button type="button" class="knop" data-koppel="nee">Toch niet</button>
-        <button type="submit" class="knop primair">Ik ben nieuw hier <span aria-hidden="true">👋</span></button>
+        <button type="submit" class="knop primair">Ik ben nieuw hier <svg class="ic" aria-hidden="true"><use href="#i-vink"/></svg></button>
       </div>
     </form>`,
     'wie',
@@ -3067,7 +3080,7 @@ function openDelen() {
     openLaag(
       `
       <form class="paneel" id="delen-form" novalidate>
-        <h2 id="laag-titel">🤝 Samen prikken</h2>
+        <h2 id="laag-titel">Samen prikken</h2>
         <p class="paneel-uitleg">Deel '${esc(naam)}' met een koppel-link. Wie hem opent, ziet alle briefjes en kan meeprikken, en jullie zien meteen wat de ander doet.</p>
         <p class="paneel-uitleg">🔐 Iedereen met deze link kan meekijken en prikken. Stuur hem alleen naar wie je erbij wilt hebben.</p>
         ${
@@ -3079,7 +3092,7 @@ function openDelen() {
         <p class="fout" id="delen-fout" role="alert"></p>
         <div class="laag-knoppen">
           <button type="button" class="knop" data-laag="sluit">Later</button>
-          <button type="submit" class="knop primair">Maak een koppel-link <span aria-hidden="true">🔗</span></button>
+          <button type="submit" class="knop primair">Maak een koppel-link <svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></button>
         </div>
       </form>`,
       'delen',
@@ -3090,21 +3103,21 @@ function openDelen() {
   openLaag(
     `
     <div class="paneel">
-      <h2 id="laag-titel">🤝 Samen prikken</h2>
+      <h2 id="laag-titel">Samen prikken</h2>
       <p class="paneel-uitleg">Stuur deze link naar wie mee mag prikken op '${esc(naam)}'. 🔐 Iedereen met deze link kan meekijken en prikken.</p>
       <label class="veld"><span>Koppel-link</span>
         <input id="koppel-link" class="link-veld" readonly value="${esc(koppelLink())}" /></label>
-      <button type="button" class="knop primair blok-knop" data-delen="deel"><span aria-hidden="true">🔗</span> Link delen</button>
+      <button type="button" class="knop primair blok-knop" data-delen="deel"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg> Link delen</button>
       <h3 class="groep-kop">Op dit bord</h3>
       <div class="groep">${ledenVan(bd)
         .map((l) => `<div class="rij"><span class="pin-bol pin-${l.kleur}" aria-hidden="true"></span><span class="rij-tekst"><strong>${esc(l.naam)}${l.id === ik ? ' (jij)' : ''}</strong></span></div>`)
         .join('')}</div>
       <h3 class="groep-kop">Synchroniseren</h3>
       <div class="groep">
-        <div class="rij"><span class="rij-icoon" aria-hidden="true">🔄</span><span class="rij-tekst"><span data-sync-status>${esc(statusTekst())}</span></span></div>
-        <button type="button" class="rij" data-delen="nu"><span class="rij-icoon" aria-hidden="true">⚡</span><span class="rij-tekst"><strong>Nu synchroniseren</strong></span><span class="rij-pijl" aria-hidden="true">›</span></button>
+        <div class="rij"><span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-ververs"/></svg></span><span class="rij-tekst"><span data-sync-status>${esc(statusTekst())}</span></span></div>
+        <button type="button" class="rij" data-delen="nu"><span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-bliksem"/></svg></span><span class="rij-tekst"><strong>Nu synchroniseren</strong></span><svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg></button>
       </div>
-      <button type="button" class="knop primair blok-knop" data-laag="sluit">Klaar <span aria-hidden="true">👍</span></button>
+      <button type="button" class="knop primair blok-knop" data-laag="sluit">Klaar <svg class="ic" aria-hidden="true"><use href="#i-vink"/></svg></button>
     </div>`,
     'delen',
   )
@@ -3167,7 +3180,7 @@ function openIk() {
   openLaag(
     `
     <form class="paneel" id="ik-form" novalidate>
-      <h2 id="laag-titel">🙋 Wie ben ik?</h2>
+      <h2 id="laag-titel">Wie ben ik?</h2>
       <p class="paneel-uitleg">Op '${esc(waarde(bd.info, 'naam', 'Prikbord'))}'. Je naam staat bij wat je prikt, en je punaises en hartjes hebben jouw kleur.</p>
       <label class="veld"><span>Je naam</span>
         <input name="naam" value="${esc(ik.naam === GEEN_NAAM ? '' : ik.naam)}" maxlength="40" autocomplete="given-name" placeholder="Bijv. Oscar" /></label>
@@ -3224,7 +3237,7 @@ function openBordInstel() {
         <button type="button" class="knop" data-laag="sluit">Terug</button>
         <button type="submit" class="knop primair">Bewaren</button>
       </div>
-      <button type="button" class="knop-tekst" data-borden="verlaat">👋 Dit bord verlaten</button>
+      <button type="button" class="knop-tekst" data-borden="verlaat"><svg class="ic" aria-hidden="true"><use href="#i-deur"/></svg> Dit bord verlaten</button>
     </form>`,
     'bord',
   )
@@ -3362,7 +3375,7 @@ function openChangelog(sinds = 0) {
       <h2 id="laag-titel">${bijgewerkt ? 'Er hangt iets nieuws op het prikbord! ✨' : 'Wat is er nieuw ✨'}</h2>
       <p class="klein">${bijgewerkt ? `Bijgewerkt naar versie ${APP_VERSION}` : 'Alles wat er voor jullie gemaakt is'}</p>
       ${regels.map((e) => `<section><h3>📌 Versie ${e.v}</h3><ul>${e.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></section>`).join('')}
-      <button type="button" class="knop primair blok-knop" data-laag="sluit">Leuk! 📌</button>
+      <button type="button" class="knop primair blok-knop" data-laag="sluit">Leuk! <svg class="ic" aria-hidden="true"><use href="#i-punaise"/></svg></button>
     </div>`,
     'nieuws',
   )
@@ -3427,18 +3440,18 @@ async function exporteer() {
   openLaag(
     `
     <div class="paneel" id="backup-keus">
-      <h2 id="laag-titel">💾 Back-up maken</h2>
+      <h2 id="laag-titel">Back-up maken</h2>
       <p class="paneel-uitleg">Er hangen foto's op je borden. Wil je die ook in de back-up?</p>
       <div class="groep">
         <button type="button" class="rij" data-backup="met" disabled>
-          <span class="rij-icoon" aria-hidden="true">📸</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-foto"/></svg></span>
           <span class="rij-tekst"><strong>Met foto's</strong><span class="klein" id="backup-met">⏳ Even inpakken…</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
         <button type="button" class="rij" data-backup="zonder">
-          <span class="rij-icoon" aria-hidden="true">📝</span>
+          <span class="rij-icoon" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-briefje"/></svg></span>
           <span class="rij-tekst"><strong>Zonder foto's</strong><span class="klein">± ${fmtGrootte(zonder.size)} · alle briefjes, zonder de foto's zelf</span></span>
-          <span class="rij-pijl" aria-hidden="true">›</span>
+          <svg class="ic rij-pijl" aria-hidden="true"><use href="#i-pijl"/></svg>
         </button>
       </div>
       <p class="paneel-uitleg">⚠️ Met foto's wordt het bestand groot. Mailen of in een appje sturen lukt dan misschien niet: bewaar hem liever in Bestanden of iCloud Drive.</p>
@@ -3630,7 +3643,7 @@ view.addEventListener('change', (e) => {
 function toonTabwissel(knop) {
   if (minderBeweging()) return
   onthul()
-  const icoon = knop?.querySelector('span')
+  const icoon = knop?.querySelector('.ic')
   if (icoon) hup(icoon)
 }
 

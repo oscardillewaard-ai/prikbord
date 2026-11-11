@@ -1,35 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Prikbord-icoon: kurk, een afgescheurd geel briefje en een rode punaise.
-       Iconen opnieuw maken: npm run icons -->
+  <!-- Prikbord-icoon: kurk, een afgescheurd kladblokbriefje (lijntjes, gaatjes van de
+       scheurlijn, balpenblauw) en een rode punaise. Iconen opnieuw maken: npm run icons -->
   <defs>
-    <filter id="kurk" x="0" y="0" width="100%" height="100%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="4" result="ruis"/>
-      <feColorMatrix in="ruis" values="0 0 0 0 0.30  0 0 0 0 0.17  0 0 0 0 0.06  0 0 0 2.4 -1.1"/>
+    <filter id="grof" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="2"/>
+      <feColorMatrix values="0 0 0 0 0.86  0 0 0 0 0.62  0 0 0 0 0.38  0 0 0 1.5 -0.6"/>
     </filter>
-    <filter id="vlek" x="0" y="0" width="100%" height="100%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.18" numOctaves="2" seed="11"/>
-      <feColorMatrix values="0 0 0 0 0.93  0 0 0 0 0.74  0 0 0 0 0.50  0 0 0 1.6 -0.7"/>
+    <filter id="fijn" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.42" numOctaves="3" seed="5"/>
+      <feColorMatrix values="0 0 0 0 0.36  0 0 0 0 0.2  0 0 0 0 0.08  0 0 0 3 -1.38"/>
+    </filter>
+    <filter id="licht" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.36" numOctaves="2" seed="9"/>
+      <feColorMatrix values="0 0 0 0 0.96  0 0 0 0 0.8  0 0 0 0 0.58  0 0 0 3 -1.5"/>
     </filter>
     <filter id="schaduw" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="5" dy="14" stdDeviation="11" flood-color="#2b1708" flood-opacity="0.45"/>
+      <feDropShadow dx="6" dy="15" stdDeviation="11" flood-color="#2b1708" flood-opacity="0.5"/>
     </filter>
-    <radialGradient id="pin" cx="36%" cy="30%" r="72%">
-      <stop offset="0" stop-color="#ffb3ab"/>
-      <stop offset="0.35" stop-color="#e5483d"/>
-      <stop offset="1" stop-color="#7f1d17"/>
+    <filter id="pinschaduw" x="-60%" y="-60%" width="220%" height="240%">
+      <feDropShadow dx="7" dy="12" stdDeviation="7" flood-color="#2b1708" flood-opacity="0.5"/>
+    </filter>
+    <radialGradient id="rand" cx="50%" cy="50%" r="72%">
+      <stop offset="0.62" stop-color="#2b1708" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2b1708" stop-opacity="0.3"/>
     </radialGradient>
+    <linearGradient id="papier" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#fff8cf"/>
+      <stop offset="0.45" stop-color="#fff1a8"/>
+      <stop offset="1" stop-color="#f3df8c"/>
+    </linearGradient>
+    <radialGradient id="pin" cx="36%" cy="30%" r="74%">
+      <stop offset="0" stop-color="#ffc2ba"/>
+      <stop offset="0.3" stop-color="#ea4e42"/>
+      <stop offset="0.72" stop-color="#c22f25"/>
+      <stop offset="1" stop-color="#7a1a14"/>
+    </radialGradient>
+    <clipPath id="vel"><path d="M104 150 L110.3 150 A7.5 7.5 0 0 0 125.3 150 L138.0 150 A7.5 7.5 0 0 0 153.0 150 L165.6 150 A7.5 7.5 0 0 0 180.6 150 L193.2 150 A7.5 7.5 0 0 0 208.2 150 L220.9 150 A7.5 7.5 0 0 0 235.9 150 L248.5 150 A7.5 7.5 0 0 0 263.5 150 L276.1 150 A7.5 7.5 0 0 0 291.1 150 L303.8 150 A7.5 7.5 0 0 0 318.8 150 L331.4 150 A7.5 7.5 0 0 0 346.4 150 L359.0 150 A7.5 7.5 0 0 0 374.0 150 L386.7 150 A7.5 7.5 0 0 0 401.7 150 L408 150 L409.5 414 L393.4 413.9 L375.3 413.2 L358.4 415.8 L346.7 417.1 L335.3 416.4 L323.6 413.3 L307.9 419.9 L295.5 414.5 L277.6 421.0 L260.3 416.1 L238.5 412.9 L218.1 415.1 L205.5 413.6 L191.1 419.8 L178.1 417.7 L160.1 415.9 L143.1 413.1 L131.4 414.4 L112.9 416.3 L103 416 Z"/></clipPath>
   </defs>
-  <rect width="512" height="512" fill="#b57b45"/>
-  <rect width="512" height="512" filter="url(#vlek)"/>
-  <rect width="512" height="512" filter="url(#kurk)"/>
-  <g filter="url(#schaduw)" transform="rotate(-6 256 280)">
-    <path fill="#fde68a" d="M112 150 L126 141 L139 149 L153 138 L168 147 L181 140 L197 150 L211 139 L226 146 L240 137
-      L255 148 L270 140 L284 149 L299 138 L313 146 L328 139 L342 149 L357 140 L371 147 L386 139 L400 148
-      L400 410 L112 410 Z"/>
-    <path fill="none" stroke="#3b2a1a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"
-      d="M150 238 q22 -16 44 0 t44 0 t44 0 t44 0 M150 296 q22 -16 44 0 t44 0 t44 0 M150 354 q22 -16 44 0 t44 0"/>
+  <rect width="512" height="512" fill="#b07642"/>
+  <rect width="512" height="512" filter="url(#grof)"/>
+  <rect width="512" height="512" filter="url(#fijn)"/>
+  <rect width="512" height="512" filter="url(#licht)"/>
+  <rect width="512" height="512" fill="url(#rand)"/>
+  <g transform="rotate(-5 256 284)">
+    <g filter="url(#schaduw)">
+      <path d="M104 150 L110.3 150 A7.5 7.5 0 0 0 125.3 150 L138.0 150 A7.5 7.5 0 0 0 153.0 150 L165.6 150 A7.5 7.5 0 0 0 180.6 150 L193.2 150 A7.5 7.5 0 0 0 208.2 150 L220.9 150 A7.5 7.5 0 0 0 235.9 150 L248.5 150 A7.5 7.5 0 0 0 263.5 150 L276.1 150 A7.5 7.5 0 0 0 291.1 150 L303.8 150 A7.5 7.5 0 0 0 318.8 150 L331.4 150 A7.5 7.5 0 0 0 346.4 150 L359.0 150 A7.5 7.5 0 0 0 374.0 150 L386.7 150 A7.5 7.5 0 0 0 401.7 150 L408 150 L409.5 414 L393.4 413.9 L375.3 413.2 L358.4 415.8 L346.7 417.1 L335.3 416.4 L323.6 413.3 L307.9 419.9 L295.5 414.5 L277.6 421.0 L260.3 416.1 L238.5 412.9 L218.1 415.1 L205.5 413.6 L191.1 419.8 L178.1 417.7 L160.1 415.9 L143.1 413.1 L131.4 414.4 L112.9 416.3 L103 416 Z" fill="url(#papier)"/>
+    </g>
+    <g clip-path="url(#vel)">
+      <line x1="104" y1="222" x2="408" y2="222" stroke="#5a86c8" stroke-opacity="0.42" stroke-width="3"/><line x1="104" y1="276" x2="408" y2="276" stroke="#5a86c8" stroke-opacity="0.42" stroke-width="3"/><line x1="104" y1="330" x2="408" y2="330" stroke="#5a86c8" stroke-opacity="0.42" stroke-width="3"/><line x1="104" y1="384" x2="408" y2="384" stroke="#5a86c8" stroke-opacity="0.42" stroke-width="3"/>
+      <g fill="none" stroke="#1f3474" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M146 208 q14 -22 30 -4 t30 2 t30 -6 t32 6 t30 -4 t32 4 t26 -6"/>
+        <path d="M146 262 q16 -20 32 -2 t32 0 t30 -4 t32 6 t28 -6"/>
+        <path d="M146 316 q14 -20 30 -2 t32 2 t30 -6"/>
+      </g>
+      <!-- een hartje onderaan, zoals op de briefjes -->
+      <path transform="translate(140 352) scale(1.9)" fill="#e0453a" d="M12 21.3c-.3 0-.6-.1-.8-.3C7.3 17.9 2.4 13.8 2.4 8.9 2.4 6 4.7 3.6 7.6 3.6c1.8 0 3.4.9 4.4 2.4 1-1.5 2.6-2.4 4.4-2.4 2.9 0 5.2 2.4 5.2 5.3 0 4.9-4.9 9-8.8 12.1-.2.2-.5.3-.8.3z"/>
+    </g>
   </g>
-  <ellipse cx="262" cy="196" rx="34" ry="12" fill="#2b1708" opacity="0.35"/>
-  <circle cx="256" cy="168" r="36" fill="url(#pin)"/>
-  <circle cx="244" cy="155" r="9" fill="#fff" opacity="0.7"/>
+  <g filter="url(#pinschaduw)">
+    <circle cx="256" cy="150" r="40" fill="url(#pin)"/>
+  </g>
+  <ellipse cx="241" cy="134" rx="12" ry="9" fill="#fff" opacity="0.8" transform="rotate(-28 241 134)"/>
+  <circle cx="274" cy="172" r="6" fill="#fff" opacity="0.16"/>
 </svg>
