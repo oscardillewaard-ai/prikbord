@@ -10,7 +10,7 @@ import { start } from './serve.mjs'
 import { startWorker, nepNominatim } from './nep-worker.mjs'
 import { beginStaat, nieuwBriefje, zetVeld } from '../public/js/model.js'
 import { demoStaatM2, DEMO_NU } from './demo.mjs'
-import { axeScan } from './axe.mjs'
+import { axeScan, papierScan } from './axe.mjs'
 import sharp from 'sharp'
 
 // De versie uit app.js, zodat het release-ritueel (APP_VERSION en CACHE
@@ -1262,6 +1262,27 @@ const imgMaat = (p, sel) => p.evaluate((s) => [document.querySelector(s)?.natura
   await r.p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), onder)
   await r.p.waitForSelector(`${onder}:not(.leeg) img[src^="blob:"]`, { timeout: 10000 })
   ok('prestaties: …en laadt zodra hij in beeld komt', true)
+  // Halverwege het bord hangen briefjes met een hoge z-index (tot 80) onder
+  // de kop en de tabbalk. De kop, de filterbalk, het blokje en de tabbalk
+  // horen daar bovenop te blijven: het bord is zijn eigen stapel (na M5
+  // gevonden: bij meer dan ± 20 briefjes schoven ze eroverheen). Op vijf
+  // plekken over de breedte, want in het midden zit de kier tussen de kolommen.
+  await r.p.evaluate(() => scrollTo(0, Math.round(document.documentElement.scrollHeight / 2)))
+  await r.p.waitForTimeout(250)
+  const bovenop = await r.p.evaluate(() => {
+    const hoort = (sel) => {
+      const b = document.querySelector(sel).getBoundingClientRect()
+      return [0.1, 0.3, 0.5, 0.7, 0.9].every((f) => !!document.elementFromPoint(b.left + b.width * f, b.top + b.height / 2)?.closest(sel))
+    }
+    return {
+      kop: hoort('.kop'),
+      filterbalk: hoort('.filterbalk'),
+      blokje: hoort('#blok'),
+      tabbalk: hoort('.tabbar'),
+      hoogsteZ: Math.max(...[...document.querySelectorAll('.bord-binnen .briefje-plek')].map((el) => Number(el.style.zIndex))),
+    }
+  })
+  ok('vol bord: de kop, de filterbalk, het blokje en de tabbalk blijven boven de briefjes (z-index tot 80)', bovenop.kop && bovenop.filterbalk && bovenop.blokje && bovenop.tabbalk && bovenop.hoogsteZ === 80, JSON.stringify(bovenop))
   await r.p.evaluate(() => scrollTo(0, 0))
   await r.p.waitForTimeout(300)
   await r.p.locator('.briefje-plek[data-id="m5brief000"] .briefje').click()
@@ -1338,6 +1359,9 @@ const imgMaat = (p, sel) => p.evaluate((s) => [document.querySelector(s)?.natura
     await q.waitForTimeout(600)
     const v = await axeScan(q)
     ok(`toegankelijk (axe, WCAG 2.2 AA): ${naam}`, v.length === 0, v.slice(0, 3).join(' | '))
+    // axe slaat tekst op het papier over (achtergrondafbeelding): zelf nakijken.
+    const pv = await papierScan(q)
+    ok(`leesbaar op het papier (minstens 4,5 : 1): ${naam}`, pv.length === 0, pv.slice(0, 3).join(' | '))
   }
   const sluitAlles = async () => {
     for (let i = 0; i < 4 && (await q.locator('.laag[open]').count()); i++) {
@@ -1439,6 +1463,8 @@ const imgMaat = (p, sel) => p.evaluate((s) => [document.querySelector(s)?.natura
   await w.p.waitForTimeout(600)
   const vw = await axeScan(w.p)
   ok('toegankelijk (axe, WCAG 2.2 AA): de eerste start ("Wie ben jij?")', vw.length === 0, vw.slice(0, 3).join(' | '))
+  const pw = await papierScan(w.p)
+  ok('leesbaar op het papier (minstens 4,5 : 1): de eerste start (de kop stond wit op geel)', pw.length === 0, pw.slice(0, 3).join(' | '))
   await w.ctx.close()
 }
 

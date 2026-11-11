@@ -184,8 +184,13 @@ main {
   min-height: calc(100dvh - var(--kop-h) - var(--tab-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
+/* z-index 0: het bord is zijn eigen stapel. Elk briefje heeft een eigen
+   z-index (1, 2, 3 …); zonder deze regel telt die mee tussen de kop (25), de
+   filterbalk (24), het blokje (20) en de tabbalk (26), en schuift een bord
+   met meer dan ± 20 briefjes er bij het scrollen overheen. */
 .bord-binnen {
   position: relative;
+  z-index: 0;
   margin: 0 var(--lijst);
 }
 
@@ -1980,10 +1985,13 @@ html.vrij-modus body {
   padding: 30px 20px 22px;
   cursor: default;
 }
-.welkom-kop {
+/* Met .welkom-papier ervoor: anders wint ".paneel h2" (wit met schaduw, voor
+   op het donkere doek) en staat de kop wit op geel papier. */
+.welkom-papier .welkom-kop {
   margin: 0 0 6px;
   font: var(--hand-gewicht) 30px/1.05 var(--hand);
   color: var(--inkt);
+  text-shadow: none;
 }
 .welkom-tekst {
   margin: 0 0 14px;
@@ -2515,4 +2523,184 @@ li + li .zoek-uitkomst {
 }
 .vel-bijlagen .polaroid.klein {
   width: 62px;
+}
+
+/* =====================================================================
+   Versie 6: de afwerking (beweging en licht)
+   ===================================================================== */
+
+/* ---------- Knoppen geven mee onder je vinger ---------- */
+
+.knop,
+.extra-knop,
+.hart-knop,
+.cat-pijl,
+.weg-knop,
+.kleur,
+.tabje,
+.emoji-keus button,
+.zoomknoppen button,
+.weergave button,
+.trek-knop,
+.blok-vel {
+  transition:
+    transform 0.12s ease-out,
+    opacity 0.15s ease-out,
+    box-shadow 0.15s ease-out;
+}
+.tabbar button span {
+  transition:
+    transform 0.12s ease-out,
+    opacity 0.2s ease-out,
+    filter 0.2s ease-out;
+}
+.rij,
+.zoek-uitkomst,
+.cat-knop {
+  transition: background-color 0.12s ease-out;
+}
+.knop:active,
+.extra-knop:active {
+  transform: scale(0.96);
+}
+.hart-knop:active,
+.kleur:active,
+.cat-pijl:not(:disabled):active,
+.weg-knop:active,
+.emoji-keus button:active,
+.zoomknoppen button:active {
+  transform: scale(0.9);
+}
+.weergave button:active {
+  transform: scale(0.94);
+}
+button.rij:active,
+label.rij:active,
+.zoek-uitkomst:active,
+.cat-knop:active {
+  background-color: rgba(120, 90, 60, 0.13);
+}
+.chip:active {
+  transform: rotate(0) scale(0.95);
+}
+.tabje:active {
+  transform: rotate(0) scale(0.97);
+}
+.tabbar button:active span {
+  transform: scale(0.86);
+}
+
+/* ---------- Tabbalk: een rood lintje boven de gekozen tab ---------- */
+
+.tabbar button {
+  position: relative;
+}
+.tabbar button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 38px;
+  height: 4px;
+  margin-left: -19px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(var(--accent), var(--tab-actief));
+  box-shadow: 0 1px 2px rgba(60, 20, 10, 0.35);
+  transform: scaleX(0);
+  transition: transform 0.24s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.tabbar button[aria-current='page']::before {
+  transform: scaleX(1);
+}
+.tabbar button:focus-visible {
+  outline: 3px solid #1d64d8;
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+
+/* ---------- Panelen en meldingen komen zacht in beeld ---------- */
+
+@keyframes kom {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes kom-zacht {
+  from {
+    opacity: 0;
+  }
+}
+.laag > .kom {
+  animation: kom 0.26s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+.laag > .kom-zacht {
+  animation: kom-zacht 0.2s ease-out backwards;
+}
+/* translate(-50%): de vaste plek van de melding, midden in beeld. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.94);
+  }
+}
+.toast {
+  animation: toast-in 0.3s cubic-bezier(0.3, 1.35, 0.5, 1) backwards;
+}
+
+/* Het doek dat bij een tabwissel over het nieuwe scherm ligt en wegvaagt
+   (beweging.js: onthul). Zelfde kurk als de pagina en ook vanaf linksboven,
+   zodat het patroon aansluit. Onder de kop (25) en de tabbalk (26), boven de
+   filterbalk (ook 24, maar eerder in de pagina) en het blokje (20). */
+.wisseldoek {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: var(--kurk);
+  background-color: var(--kurk-kleur);
+  pointer-events: none;
+}
+
+/* Achter een paneel of formulier is het doek donkerder: wat erachter staat,
+   leidt dan niet af van wat je invult. Achter een briefje blijft het lichter,
+   zodat je het bord nog ziet hangen. */
+.laag:has(> .paneel) .laag-achter,
+.laag:has(> .nieuws) .laag-achter {
+  background: rgba(28, 16, 6, 0.84);
+}
+
+/* ---------- De punaise raakt het papier ---------- */
+
+/* Het kringetje dat uitloopt als de punaise erin gaat (beweging.js). Op de
+   wrapper, want het papier heeft een clip-path. */
+.drukgolf {
+  position: absolute;
+  left: var(--px, 50%);
+  top: 3px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 52%, rgba(60, 30, 8, 0.34) 68%, rgba(60, 30, 8, 0.12) 84%, transparent);
+  transform: translate(-50%, -50%) scale(0.55);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* De hele foto op een geopend briefje vaagt in als hij er is. */
+.polaroid.groot-foto img,
+.polaroid.gedaan-foto img {
+  transition: opacity 0.25s ease-out;
+}
+.polaroid.groot-foto.leeg img,
+.polaroid.gedaan-foto.leeg img {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabbar button::before,
+  .polaroid.groot-foto img,
+  .polaroid.gedaan-foto img {
+    transition: none;
+  }
 }

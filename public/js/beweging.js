@@ -46,10 +46,10 @@ const randen = (laag) => [...laag.querySelectorAll('.tabjes, .laag-knoppen, .laa
 
 // Snippers van de scheurrand: eerst een stukje omhoog, dan dwarrelen ze naar beneden.
 function snippers(laag, rect, kleurKlasse) {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 11; i++) {
     const s = document.createElement('span')
     s.className = `snipper ${kleurKlasse}`
-    const maat = toeval(4, 9)
+    const maat = toeval(5, 11)
     const punten = Array.from({ length: 3 }, () => `${Math.round(toeval(0, 100))}% ${Math.round(toeval(0, 100))}%`).join(',')
     s.style.cssText = `left:${rect.left + toeval(6, rect.width - 6)}px;top:${rect.top + toeval(0, 6)}px;width:${maat}px;height:${maat * toeval(0.6, 1.4)}px;clip-path:polygon(${punten})`
     laag.append(s)
@@ -85,11 +85,14 @@ export function scheurAf(blokVel, velPlek, laag, kleurKlasse) {
   const dy = P.top - F.top
   const anim = velPlek.animate(
     [
-      { transform: `translate(${dx}px, ${dy}px) rotate(-4deg) scale(${sx}, ${sy})` },
-      { transform: `translate(${dx - 26}px, ${dy - 80}px) rotate(-15deg) scale(${sx * 1.4}, ${sy * 1.4})`, offset: 0.26 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(-4deg) scale(${sx}, ${sy})`, easing: 'ease-out' },
+      // Het vel spant even (je trekt eraan) …
+      { transform: `translate(${dx + 3}px, ${dy + 5}px) rotate(-1deg) scale(${sx * 1.03}, ${sy * 1.03})`, offset: 0.09, easing: 'cubic-bezier(.3,0,.2,1)' },
+      // … en schiet dan los, schuin omhoog.
+      { transform: `translate(${dx - 26}px, ${dy - 84}px) rotate(-15deg) scale(${sx * 1.4}, ${sy * 1.4})`, offset: 0.3, easing: 'cubic-bezier(.25,.8,.3,1)' },
       { transform: 'none' },
     ],
-    { duration: 540, easing: 'cubic-bezier(.25,.8,.3,1)' },
+    { duration: 580 },
   )
   for (const el of randen(laag)) {
     el.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 240, delay: 320, easing: 'ease-out', fill: 'backwards' })
@@ -150,20 +153,53 @@ export function prikIn(plek, opImpact) {
     ],
     { duration: duur },
   )
-  setTimeout(() => opImpact?.(), duur * raak)
-  papier.animate([{ transform: 'none' }, { transform: 'scale(0.97)' }, { transform: 'none' }], { duration: 240, delay: duur * raak - 20, easing: 'ease-out' })
+  setTimeout(() => {
+    opImpact?.()
+    drukgolf(plek)
+  }, duur * raak)
+  papier.animate([{ transform: 'none' }, { transform: 'scale(0.965)' }, { transform: 'scale(1.008)' }, { transform: 'none' }], { duration: 280, delay: duur * raak - 20, easing: 'ease-out' })
   return klaar(anim)
 }
 
-function zwaai(el, hoek, delay) {
+// Waar de punaise het papier raakt, loopt een zacht kringetje uit: het
+// papier wordt even in het kurk gedrukt. Eén element, alleen transform en
+// opacity, en na een kwart seconde weer weg.
+function drukgolf(plek) {
+  const golf = document.createElement('span')
+  golf.className = 'drukgolf'
+  golf.setAttribute('aria-hidden', 'true')
+  plek.append(golf)
+  golf.animate(
+    [
+      { transform: 'translate(-50%, -50%) scale(0.55)', opacity: 0.7 },
+      { transform: 'translate(-50%, -50%) scale(2.3)', opacity: 0 },
+    ],
+    { duration: 340, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' },
+  ).finished.then(
+    () => golf.remove(),
+    () => golf.remove(),
+  )
+}
+
+// Uitslingeren om de punaise: elke slag kleiner dan de vorige, zoals een
+// briefje dat aan één punaise hangt.
+function zwaai(el, hoek, delay, duur = 680) {
   el.animate(
-    [{ transform: 'none' }, { transform: `rotate(${hoek}deg)` }, { transform: `rotate(${-hoek * 0.6}deg)` }, { transform: `rotate(${hoek * 0.3}deg)` }, { transform: 'none' }],
-    { duration: 680, delay, easing: 'ease-in-out' },
+    [
+      { transform: 'none' },
+      { transform: `rotate(${hoek}deg)`, offset: 0.2 },
+      { transform: `rotate(${-hoek * 0.58}deg)`, offset: 0.44 },
+      { transform: `rotate(${hoek * 0.3}deg)`, offset: 0.66 },
+      { transform: `rotate(${-hoek * 0.12}deg)`, offset: 0.85 },
+      { transform: 'none' },
+    ],
+    { duration: duur, delay, easing: 'ease-in-out' },
   )
 }
 
 // Buren wiebelen even mee: hoe dichterbij, hoe meer. Ze draaien om hun eigen punaise.
-export function wiebelBuren(plek, max = 5) {
+// `eigen`: hoe ver het briefje zelf uitslingert (graden).
+export function wiebelBuren(plek, { max = 5, eigen = 1.4 } = {}) {
   const r = plek.getBoundingClientRect()
   const cx = r.left + r.width / 2
   const cy = r.top + r.height / 2
@@ -177,7 +213,7 @@ export function wiebelBuren(plek, max = 5) {
     .filter((b) => b.afstand < r.width * 1.9)
     .sort((a, b) => a.afstand - b.afstand)
     .slice(0, max)
-  zwaai(plek.querySelector('.briefje'), 1.4, 120)
+  zwaai(plek.querySelector('.briefje'), eigen, 90, eigen > 1.5 ? 820 : 680)
   buren.forEach(({ el, kant, afstand }, i) => zwaai(el.querySelector('.briefje'), kant * Math.max(0.7, 2.6 - afstand / r.width), 60 + i * 35))
   return buren.length
 }
@@ -241,24 +277,69 @@ export function vervaagLaag(laag, duur = 180) {
 // Fel, zodat het opvalt tussen het pastelpapier.
 const KLEUREN = ['#ff3b5c', '#ffbe0b', '#2f7bff', '#06c48a', '#8a3ffc', '#ff6a00', '#ff1f8f', '#ffffff']
 
-// Een hartje geven (dubbeltik): een groot hart klopt even op het briefje.
-export function hartPop(plek) {
+// Waar een klein hartje onderaan het briefje staat, gerekend vanuit het
+// midden van het briefje en in de maten van het briefje zelf (draaien en
+// zoomen doen dan niet mee). Het hartje is een svg, en die heeft geen
+// offsetLeft: we tellen vanaf het rijtje (.hartjes) waarin het staat.
+function plekVanHartje(doel, plek, grootMaat) {
+  const rij = doel.parentElement
+  const maat = parseFloat(getComputedStyle(doel).width) || 13
+  const gat = parseFloat(getComputedStyle(rij).columnGap) || 0
+  const i = Math.max(0, [...rij.children].indexOf(doel))
+  return {
+    x: rij.offsetLeft + i * (maat + gat) + maat / 2 - plek.offsetWidth / 2,
+    y: rij.offsetTop + rij.offsetHeight / 2 - plek.offsetHeight / 2,
+    s: maat / grootMaat,
+  }
+}
+
+// Een hartje geven (dubbeltik): een groot hart klopt even op het briefje en
+// vliegt dan naar zijn plekje onderaan (`doel`: het kleine hartje dat er net
+// bij kwam). Dat kleine hartje klopt na als het grote aankomt. Zonder doel
+// (het hartje valt buiten de eerste vijf) zweeft het grote hart omhoog weg.
+export function hartPop(plek, doel) {
   const hart = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   hart.setAttribute('class', 'hart-pop')
   hart.setAttribute('aria-hidden', 'true')
   hart.innerHTML = '<use href="#hart"/>'
   plek.append(hart)
+  const midden = 'translate(-50%, -50%)'
+  const naar = doel && plekVanHartje(doel, plek, 64)
+  const slot = naar
+    ? [
+        { transform: `${midden} scale(1.02)`, opacity: 1, offset: 0.62, easing: 'cubic-bezier(.5,0,.6,1)' },
+        { transform: `translate(calc(-50% + ${naar.x}px), calc(-50% + ${naar.y}px)) scale(${naar.s * 1.15})`, opacity: 1, offset: 0.97 },
+        { transform: `translate(calc(-50% + ${naar.x}px), calc(-50% + ${naar.y}px)) scale(${naar.s})`, opacity: 0 },
+      ]
+    : [
+        { transform: `${midden} scale(1.05)`, opacity: 1, offset: 0.7 },
+        { transform: 'translate(-50%, -70%) scale(1.1)', opacity: 0 },
+      ]
+  const duur = naar ? 900 : 850
   const anim = hart.animate(
     [
-      { transform: 'translate(-50%, -50%) scale(0.2)', opacity: 0 },
-      { transform: 'translate(-50%, -50%) scale(1.25)', opacity: 1, offset: 0.25 },
-      { transform: 'translate(-50%, -50%) scale(0.95)', opacity: 1, offset: 0.45 },
-      { transform: 'translate(-50%, -50%) scale(1.05)', opacity: 1, offset: 0.7 },
-      { transform: 'translate(-50%, -70%) scale(1.1)', opacity: 0 },
+      { transform: `${midden} scale(0.2)`, opacity: 0 },
+      { transform: `${midden} scale(1.25)`, opacity: 1, offset: 0.22 },
+      { transform: `${midden} scale(0.94)`, opacity: 1, offset: 0.38 },
+      { transform: `${midden} scale(1.06)`, opacity: 1, offset: 0.52 },
+      ...slot,
     ],
-    { duration: 850, easing: 'ease-out' },
+    { duration: duur, easing: 'ease-out' },
   )
   plek.querySelector('.briefje')?.animate([{ transform: 'none' }, { transform: 'scale(1.04)' }, { transform: 'none' }], { duration: 260, easing: 'ease-out' })
+  // Het kleine hartje wacht tot het grote er is, en klopt dan na.
+  if (naar) {
+    doel.animate(
+      [
+        { transform: 'scale(0)', offset: 0 },
+        { transform: 'scale(0)', offset: 0.9 },
+        { transform: 'scale(1.7)', offset: 0.95 },
+        { transform: 'scale(0.9)', offset: 0.98 },
+        { transform: 'scale(1)', offset: 1 },
+      ],
+      { duration: duur + 220, easing: 'ease-out' },
+    )
+  }
   return klaar(anim).then(() => hart.remove())
 }
 
@@ -314,7 +395,15 @@ export async function valInDoos(grootPlek, doel, laag, opPlop) {
 }
 
 // Confetti vanuit een element (de Gedaan-doos). Op de body, want de laag is dan al dicht.
-export function confetti(bron, aantal = 44) {
+// Elk snippertje krijgt een echte worp: een beginsnelheid schuin omhoog,
+// zwaartekracht en luchtweerstand. Het schiet in een halve seconde omhoog en
+// dwarrelt daarna rustig naar beneden, fladderend om zijn as. De baan
+// rekenen we vooraf uit op een handvol tijdstippen (dicht op elkaar in het
+// snelle begin); de browser doet de rest met transform en opacity.
+// Drie soorten: vierkantjes, rondjes en lange slierten.
+const VAL = 330 // px per seconde: zo snel dwarrelt een snippertje op het laatst
+const REM = 3.4 // per seconde: hoe snel de lucht de worp afremt
+export function confetti(bron, aantal = 60) {
   const r = bron.getBoundingClientRect()
   const x = r.left + r.width / 2
   const y = r.top + r.height * 0.3
@@ -322,28 +411,42 @@ export function confetti(bron, aantal = 44) {
   doos.className = 'confetti'
   doos.setAttribute('aria-hidden', 'true')
   document.body.append(doos)
+  // Hoe hoog het komt, hangt af van het scherm: op een telefoon tot ruim over de helft.
+  const top = Math.min(innerHeight * 0.6, 560)
+  const STAPPEN = 11
   const klaarAlles = []
   for (let i = 0; i < aantal; i++) {
     const c = document.createElement('span')
+    const soort = i % 7 === 0 ? 'sliert' : Math.random() < 0.28 ? 'rond' : 'vier'
     const maat = toeval(7, 12)
-    c.style.cssText = `left:${x}px;top:${y}px;width:${maat}px;height:${maat * toeval(0.4, 1)}px;background:${KLEUREN[i % KLEUREN.length]};border-radius:${Math.random() < 0.3 ? '50%' : '1px'}`
+    const b = soort === 'sliert' ? toeval(4, 5.5) : maat
+    const h = soort === 'sliert' ? toeval(16, 26) : soort === 'rond' ? maat : maat * toeval(0.45, 1)
+    c.style.cssText = `left:${x}px;top:${y}px;width:${b}px;height:${h}px;margin:${-h / 2}px 0 0 ${-b / 2}px;background:${KLEUREN[i % KLEUREN.length]};border-radius:${soort === 'rond' ? '50%' : '1.5px'}`
     doos.append(c)
-    const hoek = toeval(-Math.PI * 0.88, -Math.PI * 0.12)
-    const kracht = toeval(140, 340)
-    const tx = Math.cos(hoek) * kracht
-    const ty = Math.sin(hoek) * kracht
-    klaarAlles.push(
-      klaar(
-        c.animate(
-          [
-            { transform: 'translate(-50%, -50%) rotate(0deg)', opacity: 1 },
-            { transform: `translate(${tx}px, ${ty}px) rotate(${toeval(-300, 300)}deg)`, opacity: 1, offset: 0.45, easing: 'cubic-bezier(.3,0,.7,1)' },
-            { transform: `translate(${tx * 1.3}px, ${ty + toeval(160, 280)}px) rotate(${toeval(-700, 700)}deg)`, opacity: 0 },
-          ],
-          { duration: toeval(1200, 1800), easing: 'cubic-bezier(.15,.7,.4,1)' },
-        ),
-      ),
-    )
+    // De worp. Omhoog: genoeg om tussen 35% en 100% van `top` te halen
+    // (de beginsnelheid die daarbij hoort, is ruwweg 4,6 × de hoogte + 300).
+    const hoogte = toeval(0.35, 1) * top
+    const vy = -(hoogte * 4.6 + 300)
+    const vx = toeval(-1, 1) * toeval(120, 900)
+    const sec = toeval(1.9, 2.5)
+    const draai = toeval(-520, 520)
+    const kantel = toeval(2.5, 6) * 360 * (Math.random() < 0.5 ? -1 : 1)
+    const as = Math.random() < 0.5 ? 'rotateX' : 'rotateY'
+    const beelden = []
+    for (let k = 0; k <= STAPPEN; k++) {
+      // Meer tijdstippen in het begin, waar het snel gaat.
+      const deel = (k / STAPPEN) ** 1.7
+      const t = deel * sec
+      const uit = (1 - Math.exp(-REM * t)) / REM
+      const px = vx * uit
+      const py = (vy - VAL) * uit + VAL * t
+      beelden.push({
+        offset: Number(deel.toFixed(4)),
+        transform: `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) rotate(${(draai * deel).toFixed(0)}deg) ${as}(${(kantel * deel).toFixed(0)}deg)`,
+        opacity: deel < 0.75 ? 1 : Math.max(0, 1 - (deel - 0.75) / 0.25),
+      })
+    }
+    klaarAlles.push(klaar(c.animate(beelden, { duration: sec * 1000, delay: toeval(0, 80), easing: 'linear', fill: 'both' })))
   }
   return Promise.all(klaarAlles).then(() => doos.remove())
 }
@@ -364,4 +467,79 @@ export function popIn(grootPlek, laag) {
     el.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 220, delay: 160, easing: 'ease-out', fill: 'backwards' })
   }
   return klaar(grootPlek.animate([{ transform: 'translateY(30px) scale(0.85) rotate(3deg)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.3,1.3,.5,1)' }))
+}
+
+// ---------- Na M5: de afwerking ----------
+
+// Een ander scherm komt zacht in beeld: een doek in de kleur van het kurk ligt
+// even over het nieuwe scherm en vervaagt. Het scherm zelf beweegt niet en
+// wordt niet doorzichtig. Dat is met opzet: een animatie op het hele scherm
+// (#view) liet Chromium in de rooktest soms geloven dat het scherm nog een
+// eigen laag was, en dan kwam geen enkele tik meer aan tot er iets opnieuw
+// werd ingedeeld. Het doek is een los element, vangt geen tikken en is na
+// een vijfde seconde weer weg.
+export function onthul(duur = 190) {
+  document.querySelector('.wisseldoek')?.remove()
+  const doek = document.createElement('div')
+  doek.className = 'wisseldoek'
+  doek.setAttribute('aria-hidden', 'true')
+  document.body.append(doek)
+  return klaar(doek.animate([{ opacity: 1 }, { opacity: 0 }], { duration: duur, easing: 'ease-out', fill: 'forwards' })).then(() => doek.remove())
+}
+
+// Het icoontje van de gekozen tab maakt een sprongetje.
+export function hup(el) {
+  return klaar(
+    el.animate(
+      [{ transform: 'scale(0.82) translateY(2px)' }, { transform: 'scale(1.24) translateY(-4px)', offset: 0.45 }, { transform: 'scale(1.02) translateY(1px)', offset: 0.75 }, { transform: 'scale(1.08)' }],
+      { duration: 420, easing: 'ease-out' },
+    ),
+  )
+}
+
+// De dobbelsteen rolt: de knop maakt een sprongetje, de steen tolt rond.
+export function rolDobbelsteen(knop) {
+  knop.animate(
+    [{ transform: 'rotate(6deg)' }, { transform: 'rotate(-8deg) translateY(-7px) scale(1.12)', offset: 0.3 }, { transform: 'rotate(10deg) translateY(1px) scale(0.96)', offset: 0.62 }, { transform: 'rotate(4deg) translateY(-2px)', offset: 0.82 }, { transform: 'rotate(6deg)' }],
+    { duration: 640, easing: 'ease-out' },
+  )
+  const steen = knop.firstElementChild
+  return klaar((steen || knop).animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(540deg)' }], { duration: 640, easing: 'cubic-bezier(.2,.7,.3,1)' }))
+}
+
+// Een briefje dat een ander net prikte, komt binnen: het papier ploft op
+// zijn plek en de punaise gaat erin (zonder geluid: jij deed niets).
+export function komBinnen(plek, delay = 0) {
+  const papier = plek.querySelector('.briefje')
+  const pin = plek.querySelector('.punaise')
+  if (!papier) return Promise.resolve()
+  papier.animate(
+    [
+      { transform: 'translateY(-14px) scale(1.12)', opacity: 0 },
+      { transform: 'translateY(2px) scale(0.98)', opacity: 1, offset: 0.6 },
+      { transform: 'none', opacity: 1 },
+    ],
+    { duration: 300, delay, easing: 'cubic-bezier(.3,.9,.4,1)', fill: 'backwards' },
+  )
+  for (const el of plek.querySelectorAll('.nieuw-sticker')) {
+    el.animate([{ transform: 'rotate(9deg) scale(0)' }, { transform: 'rotate(4deg) scale(1.25)', offset: 0.7 }, { transform: 'rotate(9deg) scale(1)' }], { duration: 320, delay: delay + 420, easing: 'ease-out', fill: 'backwards' })
+  }
+  if (!pin) return Promise.resolve()
+  return klaar(
+    pin.animate(
+      [
+        { transform: 'translateY(-30px) scale(1.8)', opacity: 0 },
+        { transform: 'translateY(-30px) scale(1.8)', opacity: 1, offset: 0.2, easing: 'cubic-bezier(.55,0,1,.45)' },
+        { transform: 'translateY(2px) scale(0.85)', offset: 0.62, easing: 'ease-out' },
+        { transform: 'translateY(-2px) scale(1.07)', offset: 0.82 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 400, delay: delay + 220, fill: 'backwards' },
+    ),
+  )
+}
+
+// Het schrijfvel of een briefje zonder plek op het bord: zacht naar voren.
+export function komNaarVoren(el) {
+  return klaar(el.animate([{ transform: 'translateY(14px) scale(0.97)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(.2,.8,.3,1)' }))
 }

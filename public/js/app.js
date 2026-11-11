@@ -15,7 +15,7 @@ import { ALLES, isAlles, wisselCat, past, sorteer, trek, inDeDoos, perMaand } fr
 import { uiterlijk } from './seed.js'
 import { laad, bewaar, bewaarStraks, bewaarNu, laadSync, bewaarSync } from './store.js'
 import { zetRanden } from './randen.js'
-import { minderBeweging, scheurAf, vliegNaar, prikIn, wiebelBuren, vanBord, terugNaarBord, valWeg, vervaagLaag, hartPop, schudLos, valInDoos, confetti, stuiter, popIn } from './beweging.js'
+import { minderBeweging, scheurAf, vliegNaar, prikIn, wiebelBuren, vanBord, terugNaarBord, valWeg, vervaagLaag, hartPop, schudLos, valInDoos, confetti, stuiter, popIn, onthul, hup, rolDobbelsteen, komBinnen, komNaarVoren } from './beweging.js'
 import { maakVrij } from './vrij.js'
 import { rrrits, tok, plop } from './geluid.js'
 import { linkUitInvoer, domeinVan } from './link.js'
@@ -173,12 +173,17 @@ const ui = {
   kaartCam: {}, // kaart: per bord { midden, zoom }
   plekKies: null, // de plek-kiezer: { kaart, marker, L, gekozen, uitkomsten }
   backup: null, // de back-up-keuze: { met, zonder } (bestanden, alvast ingepakt)
+  binnen: null, // tijdens het tekenen na een sync: de briefjes die er nieuw bij kwamen (voor hun binnenkomst)
 }
 let vrijApi = null
 
 let toastTimer = 0
+let toastWeg = null // de animatie waarmee de vorige melding verdwijnt
 function toast(tekst, { actie, opActie, ms = 2600 } = {}) {
   const el = $('#toast')
+  // Was de vorige melding net aan het verdwijnen, dan blijft hij staan voor de nieuwe.
+  toastWeg?.cancel()
+  toastWeg = null
   el.innerHTML = `<span>${esc(tekst)}</span>${actie ? `<button type="button" class="toast-actie">${esc(actie)}</button>` : ''}`
   el.hidden = false
   // Als popover ligt de toast ook boven een open venster (top layer).
@@ -199,12 +204,28 @@ function toast(tekst, { actie, opActie, ms = 2600 } = {}) {
 }
 function verbergToast() {
   const el = $('#toast')
-  try {
-    el.hidePopover?.()
-  } catch {
-    // Was al dicht.
+  if (el.hidden) return
+  const weg = () => {
+    toastWeg = null
+    try {
+      el.hidePopover?.()
+    } catch {
+      // Was al dicht.
+    }
+    el.hidden = true
   }
-  el.hidden = true
+  if (minderBeweging() || !el.animate) return weg()
+  // Zakt een stukje en vervaagt (de translate(-50%) is zijn vaste plek in het midden).
+  toastWeg = el.animate([{ transform: 'translate(-50%, 0)', opacity: 1 }, { transform: 'translate(-50%, 8px)', opacity: 0 }], { duration: 170, easing: 'ease-in', fill: 'forwards' })
+  const deze = toastWeg
+  deze.finished.then(
+    () => {
+      if (toastWeg !== deze) return
+      weg()
+      deze.cancel()
+    },
+    () => {},
+  )
 }
 
 const speel = (geluidje) => {
@@ -248,7 +269,12 @@ function dubbeltik(id) {
     meld('Hartje gegeven')
   }
   const plek = view.querySelector(`.briefje-plek[data-id="${id}"]`)
-  if (plek && !minderBeweging()) hartPop(plek)
+  if (plek && !minderBeweging()) {
+    // Mijn hartje in het rijtje onderaan (alleen de eerste vijf staan er).
+    const b = bord().briefjes[id]
+    const mijn = b ? hartjesVan(b).indexOf(ikId()) : -1
+    hartPop(plek, mijn >= 0 ? plek.querySelectorAll('.hartjes .hart')[mijn] : null)
+  }
   navigator.vibrate?.(8)
 }
 
@@ -698,6 +724,7 @@ function vulBak(bak, lijst) {
       el.style.setProperty('--px', `${uiterlijk(b.id).punaiseX}%`)
       // Meteen op zijn plek in de volgorde (tabvolgorde, schermlezers).
       bak.insertBefore(el, vorige ? vorige.nextSibling : bak.firstChild)
+      ui.binnen?.push(el)
     }
     const isNieuw = nieuw.has(b.id)
     if (isNieuw) ui.getoond.add(b.id)
@@ -1577,6 +1604,9 @@ function render(vol = false) {
 // cats en cat (categorie-editor).
 
 function openLaag(html, soort) {
+  // Hetzelfde scherm opnieuw getekend (bijv. een categorie een plek omhoog)?
+  // Dan hoort er niets te bewegen.
+  const zelfde = laag.open && laag.dataset.soort === soort
   if (laag.open) {
     // Wisselen binnen de laag (bijv. van groot briefje naar bewerken): de
     // achtergrond laten staan, anders knippert hij.
@@ -1588,6 +1618,11 @@ function openLaag(html, soort) {
   }
   laag.dataset.soort = soort
   document.documentElement.classList.add('laag-open')
+  // Panelen en "Wat is er nieuw" komen zacht omhoog (styles.css: .kom). De
+  // briefjes en het schrijfvel hebben hun eigen beweging (beweging.js). De
+  // plek-kiezer vervaagt alleen in: de kaart erin meet zijn plek bij het
+  // maken, en dan moet hij stilstaan.
+  if (!zelfde) laag.querySelector(':scope > .paneel, :scope > .nieuws')?.classList.add(soort === 'plek' ? 'kom-zacht' : 'kom')
 }
 
 // Tijdens een animatie: geen tikken op de laag en niet herladen.
@@ -1953,6 +1988,8 @@ async function trekBriefje() {
   const plek = bak?.querySelector(`.briefje-plek[data-id="${id}"]`)
   if (plek && !minderBeweging()) {
     zichtbaarMaken(plek)
+    const steen = view.querySelector('[data-action="trek"]')
+    if (steen) rolDobbelsteen(steen)
     const zichtbaar = [...bak.children].filter((el) => !el.classList.contains('uit') && !el.classList.contains('gedimd'))
     await metRust(() => schudLos(zichtbaar, plek))
   }
@@ -2023,7 +2060,7 @@ function openVel({ id, nieuw, tekst = '', cat, link, foto, plek, vanBlok = false
   if (vanBlok) {
     speel(rrrits)
     if (!minderBeweging()) metRust(() => scheurAf($('.blok-vel', blok), $('.vel-plek', laag), laag, `papier-${kleur}`))
-  }
+  } else if (!minderBeweging()) komNaarVoren($('.vel-plek', laag))
 }
 
 // Wat er op het vel geplakt zit: foto, link en plek, elk met een kruisje.
@@ -2181,7 +2218,7 @@ async function prik() {
   prikIn(plek, () => {
     speel(tok)
     navigator.vibrate?.(8)
-    wiebelBuren(plek)
+    wiebelBuren(plek, { eigen: 2.2 })
   })
 }
 
@@ -2577,7 +2614,26 @@ function tekenNaSync() {
       meldLater('🗑️ Dit briefje is net door een ander weggehaald')
     } else if (JSON.stringify(b) !== ui.grootVan) wisselGroot(soort)
   }
+  // Wat er nu nieuw op het bord komt, heeft een ander geprikt (of jij, op een
+  // ander apparaat): dat zie je binnenkomen. Niet onder een open venster.
+  ui.binnen = ui.tab === 'bord' && !laag.open && !minderBeweging() ? [] : null
   render()
+  const nieuw = ui.binnen
+  ui.binnen = null
+  if (nieuw?.length) toonBinnenkomst(nieuw)
+}
+
+// Hooguit acht tegelijk, en alleen wat in beeld hangt: komt er na een week
+// offline een heel bord binnen, dan staat de rest er gewoon.
+function toonBinnenkomst(plekken) {
+  plekken
+    .filter((el) => {
+      if (!el.isConnected || el.classList.contains('uit') || el.classList.contains('verstopt')) return false
+      const r = el.getBoundingClientRect()
+      return r.bottom > 0 && r.top < innerHeight
+    })
+    .slice(0, 8)
+    .forEach((el, i) => komBinnen(el, i * 70))
 }
 
 // Wijzigingen 1,5 s bundelen (max. 6 s), zodat een reeks hartjes of een
@@ -3569,15 +3625,26 @@ view.addEventListener('change', (e) => {
   toast(e.target.checked ? '🔊 Geluid staat aan' : '🔇 Geluid staat uit')
 })
 
+// Een ander scherm komt zacht in beeld (een doek dat wegvaagt, zie
+// beweging.js) en het icoontje van de gekozen tab maakt een sprongetje.
+function toonTabwissel(knop) {
+  if (minderBeweging()) return
+  onthul()
+  const icoon = knop?.querySelector('span')
+  if (icoon) hup(icoon)
+}
+
 document.querySelector('.tabbar').addEventListener('click', (e) => {
   const knop = e.target.closest('[data-tab]')
   if (!knop) return
   // Een enkele tik die nog wachtte (dubbeltik?), hoort bij het vorige scherm.
   clearTimeout(ui.tik?.timer)
   ui.tik = null
+  const anders = ui.tab !== knop.dataset.tab
   ui.tab = knop.dataset.tab
   scrollTo(0, 0)
   render()
+  if (anders) toonTabwissel(knop)
 })
 
 // Netjes of vrij: per telefoon en per bord onthouden (§5.2).
@@ -3606,6 +3673,11 @@ blok.addEventListener('click', () => {
   if (c && c.bord === staat.bord && c.nieuw && c.id) return openVel({ ...c, vanBlok: true })
   openVel({ id: maakId(), nieuw: true, tekst: '', cat: standaardCat()?.id, vanBlok: true })
 })
+
+// Knoppen geven mee onder je vinger (:active in styles.css). Safari op de
+// iPhone doet dat pas als er een touchstart-luisteraar op de pagina staat
+// (uit mijn kennis van iOS, niet getest op een toestel). Deze doet zelf niets.
+document.addEventListener('touchstart', () => {}, { passive: true })
 
 // iOS: het toetsenbord verkleint alleen de zichtbare ruimte. Het schrijfvel
 // gebruikt die maat, zodat "Prikken!" niet achter het toetsenbord verdwijnt.
