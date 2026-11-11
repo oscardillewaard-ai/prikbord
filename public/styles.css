@@ -20,16 +20,18 @@
   --ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --kop-h: 52px;
   --tab-h: 62px;
-  --korrel: url(img/korrel.svg);
+  /* De texturen komen uit scripts/gen-texturen.mjs (npm run texturen). Ze zijn
+     twee keer zo groot als hier getoond, dus ook op een scherpe telefoon strak. */
+  --korrel: url(img/papier.webp) 0 0 / 160px 160px;
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
 
   /* Het bord: warm kurk in een houten lijst. */
-  --kurk: url(img/kurk.svg);
-  --kurk-kleur: #b07642;
+  --kurk: url(img/kurk.webp) 0 0 / 256px 256px;
+  --kurk-kleur: #b48047;
   --hout: #6e4524;
   --lijst: 7px;
-  --kop-bg: url(img/hout.svg), linear-gradient(#7a4d29, #5e3a1c);
+  --kop-bg: linear-gradient(rgba(255, 226, 180, 0.1), rgba(20, 8, 0, 0.24)), url(img/hout.webp) 0 0 / 512px 128px;
   --kop-fg: #fff3e0;
   /* Een lichte kant bovenaan en een donkere onderaan (het hout heeft dikte),
      en daaronder de schaduw van de lijst op het kurk. */
@@ -132,8 +134,8 @@ body::after {
   top: 0;
   bottom: 0;
   width: var(--lijst);
-  background: url(img/hout.svg), var(--hout);
-  background-size: 120px 400px;
+  /* Te smal voor een nerf: een houten rand met een lichte en een donkere kant. */
+  background: linear-gradient(90deg, #4c2e16, #7d4f2a 42%, #6a4222 70%, #4f3018);
   z-index: 30;
   pointer-events: none;
 }

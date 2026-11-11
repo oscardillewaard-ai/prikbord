@@ -15,7 +15,8 @@
     "worker": "node scripts/bouw-worker.mjs",
     "nep-worker": "node scripts/nep-worker.mjs",
     "screenshots:m4": "node scripts/screenshots-m4.mjs",
-    "prestaties": "node scripts/prestaties.mjs"
+    "prestaties": "node scripts/prestaties.mjs",
+    "texturen": "node scripts/gen-texturen.mjs"
   },
   "devDependencies": {
     "axe-core": "4.14.0",

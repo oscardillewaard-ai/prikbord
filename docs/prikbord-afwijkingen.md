@@ -145,3 +145,30 @@ worden hier niet herhaald.
   nagelezen). Of: zoeken helemaal uit (`ZOEKEN=uit`), dan blijven de andere drie
   manieren werken.
 - **Status:** voorgesteld (wacht op Oscar).
+
+## A7. Kurk, hout en papier als plaatjes uit een script, niet als SVG-ruis
+
+- **Waar:** `public/img/kurk.webp`, `hout.webp` en `papier.webp`, gemaakt
+  door `npm run texturen` (`scripts/gen-texturen.mjs`).
+- **Wat de spec zegt (§5.4):** kurk uit kleine SVG-ruis (`feTurbulence`), geen
+  grote foto.
+- **Waarom anders:** Oscar vond de app goedkoop ogen ("de textures moeten
+  beter", 11 nov 2026). Ruis uit een SVG-filter is overal even korrelig: het
+  leest als zand of als een slechte foto, niet als kurk. En elke browser
+  tekent zo'n filter net anders, dus wat ik hier zag, was niet zeker wat er
+  op de iPhone stond. Het script bouwt de structuur zelf op: kurk uit
+  korrels van wisselende grootte met kieren, putjes en spikkels, hout uit
+  jaarringen en vezels, papier uit een zachte wolk met een paar vezeltjes,
+  met licht van linksboven. Het zijn nog steeds geen foto's, en alles sluit
+  naadloos op zichzelf aan.
+- **Wat het kost:** samen ± 175 KB (was 3 KB), één keer geladen en daarna
+  uit de cache van de service worker. Scrollen: geen meetbaar verschil
+  (`npm run prestaties`: met en zonder kurk of papier 47 tot 52 haperende
+  frames op dezelfde machine).
+- **Wat blijft zoals de spec vraagt:** de app heeft geen buildstap. De
+  plaatjes staan in de repo, net als de iconen uit `npm run icons`.
+- **Alternatief:** terug naar de SVG-ruis (drie bestandjes van samen 3 KB),
+  of een echte foto van kurk (mooier, maar dan moet er een rechtenvrije foto
+  bij en is hij lastig naadloos te krijgen).
+- **Status:** voorgesteld (wacht op Oscar).
+

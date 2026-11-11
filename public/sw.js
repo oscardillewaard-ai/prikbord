@@ -30,9 +30,9 @@ const SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
-  'img/hout.svg',
-  'img/korrel.svg',
-  'img/kurk.svg',
+  'img/hout.webp',
+  'img/kurk.webp',
+  'img/papier.webp',
   'vendor/leaflet.css',
   'vendor/leaflet.js',
 ]

@@ -38,6 +38,7 @@ const CHANGELOG = [
     v: 6,
     items: [
       '✨ Een grote opknapbeurt! Eigen iconen in plaats van emoji op de knoppen en in de tabbalk, strakkere knoppen en een rustigere Meer-pagina. Het kurk en de briefjes zijn gebleven, met mooier licht op het papier en bollere punaises',
+      '🪵 Nieuwe texturen: echt kurk met korrels, een kop van notenhout en rustiger papier',
       '👆 Alles beweegt lekkerder: knoppen geven mee onder je vinger, schermen en meldingen komen zacht in beeld',
       '📌 De punaise gaat er met een kringetje in, en het briefje slingert daarna even uit',
       '💕 Geef je een hartje (dubbeltik), dan vliegt het grote hart naar zijn plekje onderaan het briefje',

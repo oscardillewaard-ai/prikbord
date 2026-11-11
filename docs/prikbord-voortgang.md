@@ -276,12 +276,26 @@ korter. Zonder het licht op het papier werd het niet beter (51), zonder de
 dubbele schaduw van de punaise ook niet (45): die kosten dus niets meetbaars.
 Het blijft een nabootsing zonder grafische kaart; op de telefoon voelen.
 
+**Texturen (11 nov, na "de textures moeten beter, de app oogt goedkoop"):**
+
+- Kurk, hout en papier komen nu uit `scripts/gen-texturen.mjs`
+  (`npm run texturen`) in plaats van uit SVG-ruis: zie afwijking **A7**
+  (voorgesteld). Eerste poging was te regelmatig (het leek gebarsten
+  mozaïek); de tweede heeft grillige korrels, zachte kieren en spikkels.
+- De kop is notenhout met nerf, de zijlijsten een houten rand met een
+  lichte en een donkere kant, het papier heeft geen spikkels meer maar een
+  zachte wolk. Plaatjes: `docs/v6/texturen-voor-na-*.jpg`.
+- Gemeten: geen verschil met of zonder de nieuwe texturen (47 tot 52
+  haperende frames). De testmachine was die dag als geheel onrustiger dan
+  bij de tabel hierboven, dus vergelijk die getallen niet één op één.
+- Niet gecontroleerd: hoe het op een echte iPhone oogt. Het zijn nu gewone
+  plaatjes, dus ik verwacht hetzelfde als hier, maar ik heb het niet gezien.
+
 **Niet gedaan, met reden:**
 
 - De geluidjes zijn niet aangepast: ik kan hier niet luisteren.
 - `confirm()` bij weghalen en weggooien is het venster van de telefoon
   gebleven. Een eigen venster kan, maar raakt veel tests; apart oppakken.
-- Het kurk zelf is niet veranderd: van dichtbij bekeken was het al goed.
 
 **Tests:** `npm test` 122/122, `npm run lint` schoon, `npm run rooktest`
 271 geslaagd, 0 mislukt.
@@ -305,7 +319,9 @@ Het blijft een nabootsing zonder grafische kaart; op de telefoon voelen.
    die je liever terug wilt?
 8. **Samen** (zodra de worker staat): prik iets op de ene telefoon en kijk
    of het briefje op de andere binnen komt vallen.
-9. **Het icoon**: verwijder de app van het beginscherm en zet hem er
+9. **Texturen**: oogt het kurk, het hout van de kop en het papier nu goed
+   genoeg? Zo niet: wat stoort (te druk, te donker, te vlak)?
+10. **Het icoon**: verwijder de app van het beginscherm en zet hem er
    opnieuw op. Zie je het nieuwe icoon?
 
 
