@@ -29,7 +29,7 @@ per worker-exemplaar; voorgesteld). Alle mijlpalen M0 t/m M5 zijn gebouwd; zie
 | M3 samen | klaar en gedeployd (9 nov, samen met M4), staat op `main`. De worker staat nog niet; Oscar zet hem neer en test dan met twee telefoons | `ccr-fc257cf9-70gzqa` |
 | M4 link, foto en kaart | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder. A6 voorgesteld | `ccr-80bc7fbf-gcraqb` |
 | M5 afronden | klaar en gedeployd (9 nov, akkoord van Oscar), staat op `main`; testlijst voor de telefoon hieronder | `ccr-f626df03-9jb4ek` |
-| Versie 6: opknapbeurt (na M5) | klaar op de werkbranch, **nog niet gedeployd**: wacht op akkoord van Oscar. Testlijst voor de telefoon hieronder | `ccr-156d0d09-anwxoc` |
+| Versie 6: opknapbeurt (na M5) | klaar en gedeployd (11 nov, akkoord van Oscar: "Deploy"), staat op `main`; testlijst voor de telefoon hieronder | `ccr-156d0d09-anwxoc` |
 
 ## Plan uit M0: wat ik overneem en waar ik afwijk
 
@@ -280,7 +280,7 @@ Het blijft een nabootsing zonder grafische kaart; op de telefoon voelen.
 
 - Kurk, hout en papier komen nu uit `scripts/gen-texturen.mjs`
   (`npm run texturen`) in plaats van uit SVG-ruis: zie afwijking **A7**
-  (voorgesteld). Eerste poging was te regelmatig (het leek gebarsten
+  (akkoord). Eerste poging was te regelmatig (het leek gebarsten
   mozaïek); de tweede heeft grillige korrels, zachte kieren en spikkels.
 - De kop is notenhout met nerf, de zijlijsten een houten rand met een
   lichte en een donkere kant, het papier heeft geen spikkels meer maar een
@@ -609,16 +609,26 @@ Telefoon 1 = Oscar, telefoon 2 = Tara (of een tweede toestel). Op een iPhone met
 Plak dit in een nieuwe chat met repo `oscardillewaard-ai/prikbord` en omgeving "Tezt" (bijvoorbeeld als de testlijsten iets opleveren, of als de worker staat):
 
 ```
-Prikbord, na M5 (onderhoud en terugkoppeling). Je werkt in de repo oscardillewaard-ai/prikbord.
-1. Merge eerst het werk uit M5 in je werkbranch (verandert niets als het al op main staat):
-   git fetch origin ccr-f626df03-9jb4ek && git merge origin/ccr-f626df03-9jb4ek
-2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md en
-   docs/prikbord-voortgang.md (besluiten, aannames, logboek M1 t/m M5, de
-   testlijsten en "Na M5: handig om te weten").
-3. Vraag Oscar wat hij vond bij de testlijsten (M3 met twee telefoons, M4, M5)
-   en los dat op. Geeft hij het adres van de worker, zet het dan als
+Prikbord, na versie 6 (onderhoud en terugkoppeling). Je werkt in de repo oscardillewaard-ai/prikbord.
+1. Merge eerst het werk van versie 6 in je werkbranch (verandert niets als het al op main staat):
+   git fetch origin ccr-156d0d09-anwxoc && git merge origin/ccr-156d0d09-anwxoc
+2. Lees docs/prikbord-spec.md (leidend), docs/prikbord-afwijkingen.md (A1 t/m A7)
+   en docs/prikbord-voortgang.md: besluiten, aannames, het logboek (vooral
+   versie 6), de testlijsten en "Na M5: handig om te weten" met de regels
+   sinds versie 6 (eigen iconen, geen animatie op #view, papierScan, het bord
+   als eigen stapel, texturen uit npm run texturen).
+3. Vraag Oscar wat hij vond bij de testlijst van versie 6 op zijn telefoon
+   (knoppen die meegeven, tabs, de texturen, de iconen, het nieuwe app-icoon)
+   en los dat op. Nog open van eerder: zijn bevindingen bij de testlijsten
+   van M3 (twee telefoons), M4 en M5, en zijn besluit over A6 (de zoekpauze
+   per worker-exemplaar). Geeft hij het adres van de worker, zet het dan als
    DEFAULT_SYNC_URL in public/js/app.js (met het release-ritueel).
-4. Draai voor elke commit npm test, npm run lint en npm run rooktest. Werk aan
-   het eind docs/prikbord-voortgang.md bij. Deployen (pushen naar main) pas na
-   akkoord van Oscar.
+4. Wil Oscar meer aan het uiterlijk: kijk eerst zelf (screenshots op 390 px,
+   en filmstrips in slow motion voor beweging) en laat voor en na zien.
+   Ideeën die zijn blijven liggen: een eigen venster in plaats van confirm()
+   bij weghalen en weggooien, en de geluidjes (kan alleen Oscar beoordelen).
+5. Draai voor elke commit npm test, npm run lint en npm run rooktest, en bij
+   alles wat het bord raakt npm run prestaties (twee keer, oud en nieuw op
+   dezelfde machine). Werk aan het eind docs/prikbord-voortgang.md bij.
+   Deployen (pushen naar main) pas na akkoord van Oscar.
 ```

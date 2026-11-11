@@ -170,5 +170,5 @@ worden hier niet herhaald.
 - **Alternatief:** terug naar de SVG-ruis (drie bestandjes van samen 3 KB),
   of een echte foto van kurk (mooier, maar dan moet er een rechtenvrije foto
   bij en is hij lastig naadloos te krijgen).
-- **Status:** voorgesteld (wacht op Oscar).
+- **Status:** akkoord (Oscar, 11 nov 2026: "Deploy", na het zien van de voor-en-na-plaatjes en de vraag om akkoord op A7).
 
